@@ -1,5 +1,5 @@
 #include <iostream>
-#include "FPSDialouge.h"
+#include "FPSDialog.h"
 #include "MainWindow.h"
 
 //using namespace cv;

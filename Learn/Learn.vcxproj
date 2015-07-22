@@ -140,7 +140,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="FPSDialouge.h">
+    <ClInclude Include="FPSDialog.h">
       <FileType>CppForm</FileType>
     </ClInclude>
     <ClInclude Include="serverSettingsDialoge.h">
@@ -151,8 +151,8 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="FPSDialouge.resx">
-      <DependentUpon>FPSDialouge.h</DependentUpon>
+    <EmbeddedResource Include="FPSDialog.resx">
+      <DependentUpon>FPSDialog.h</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="serverSettingsDialoge.resx">
       <DependentUpon>serverSettingsDialoge.h</DependentUpon>

@@ -552,8 +552,8 @@ namespace Learn {
 		this->x240ToolStripMenuItem->Checked = false;
 	}
 	private: System::Void fPSToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-		Learn::FPSDialouge ^ fpsDialouge = gcnew Learn::FPSDialouge();
-		fpsDialouge->Show(this);
+		Learn::FPSDialog ^ fpsDialog = gcnew Learn::FPSDialog();
+		fpsDialog->ShowDialog(this);
 	}
 	private: System::Void leftToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		captureLOrR = 0;

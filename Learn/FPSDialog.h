@@ -20,10 +20,10 @@ namespace Learn {
 	/// <summary>
 	/// Summary for FPSDialouge
 	/// </summary>
-	public ref class FPSDialouge : public System::Windows::Forms::Form
+	public ref class FPSDialog : public System::Windows::Forms::Form
 	{
 	public:
-		FPSDialouge()
+		FPSDialog()
 		{
 			InitializeComponent();
 		}
@@ -32,7 +32,7 @@ namespace Learn {
 		/// <summary>
 		/// Clean up any resources being used.
 		/// </summary>
-		~FPSDialouge()
+		~FPSDialog()
 		{
 			if (components)
 			{
@@ -96,7 +96,7 @@ namespace Learn {
 			this->Gain->Size = System::Drawing::Size(568, 45);
 			this->Gain->TabIndex = 0;
 			this->Gain->Value = 15;
-			this->Gain->Scroll += gcnew System::EventHandler(this, &FPSDialouge::Gain_Scroll);
+			this->Gain->Scroll += gcnew System::EventHandler(this, &FPSDialog::Gain_Scroll);
 			// 
 			// Exposure
 			// 
@@ -106,7 +106,7 @@ namespace Learn {
 			this->Exposure->Size = System::Drawing::Size(568, 45);
 			this->Exposure->TabIndex = 1;
 			this->Exposure->Value = 15;
-			this->Exposure->Scroll += gcnew System::EventHandler(this, &FPSDialouge::Exposure_Scroll);
+			this->Exposure->Scroll += gcnew System::EventHandler(this, &FPSDialog::Exposure_Scroll);
 			// 
 			// LED_PWM
 			// 
@@ -116,7 +116,7 @@ namespace Learn {
 			this->LED_PWM->Size = System::Drawing::Size(568, 45);
 			this->LED_PWM->TabIndex = 2;
 			this->LED_PWM->Value = 15;
-			this->LED_PWM->Scroll += gcnew System::EventHandler(this, &FPSDialouge::LED_PWM_Scroll);
+			this->LED_PWM->Scroll += gcnew System::EventHandler(this, &FPSDialog::LED_PWM_Scroll);
 			// 
 			// LEDLabel
 			// 
@@ -188,7 +188,7 @@ namespace Learn {
 			this->FPSButton->TabIndex = 10;
 			this->FPSButton->Text = L"Set FPS";
 			this->FPSButton->UseVisualStyleBackColor = true;
-			this->FPSButton->Click += gcnew System::EventHandler(this, &FPSDialouge::FPSButton_Click);
+			this->FPSButton->Click += gcnew System::EventHandler(this, &FPSDialog::FPSButton_Click);
 			// 
 			// ok
 			// 
@@ -198,7 +198,7 @@ namespace Learn {
 			this->ok->TabIndex = 11;
 			this->ok->Text = L"Ok";
 			this->ok->UseVisualStyleBackColor = true;
-			this->ok->Click += gcnew System::EventHandler(this, &FPSDialouge::ok_Click);
+			this->ok->Click += gcnew System::EventHandler(this, &FPSDialog::ok_Click);
 			// 
 			// FPSDialouge
 			// 
