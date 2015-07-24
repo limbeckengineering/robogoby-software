@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-uint16_t fps = 15; 
+uint16_t fps = 15;
 uint8_t gain = 15, exposure = 15, LED = 15;
 
 
@@ -15,7 +15,7 @@ namespace Learn {
 	using namespace System::Data;
 	using namespace System::Drawing;
 
-	
+
 
 	/// <summary>
 	/// Summary for FPSDialouge
@@ -44,14 +44,18 @@ namespace Learn {
 	private: System::Windows::Forms::TrackBar^  Exposure;
 	private: System::Windows::Forms::TrackBar^  LED_PWM;
 	private: System::Windows::Forms::Label^  LEDLabel;
-	private: System::Windows::Forms::Label^  LEDValues;
+
 	private: System::Windows::Forms::Label^  exposureLabel;
-	private: System::Windows::Forms::Label^  exposureValue;
+
 	private: System::Windows::Forms::Label^  gainLabel;
-	private: System::Windows::Forms::Label^  gainValue;
-	private: System::Windows::Forms::TextBox^  FPSTextBox;
-	private: System::Windows::Forms::Button^  FPSButton;
+
+
+
 	private: System::Windows::Forms::Button^  ok;
+	private: System::Windows::Forms::GroupBox^  groupBox1;
+	private: System::Windows::Forms::TrackBar^  FPS;
+	private: System::Windows::Forms::Label^  FPSLabel;
+
 	protected:
 
 
@@ -75,22 +79,22 @@ namespace Learn {
 			this->Exposure = (gcnew System::Windows::Forms::TrackBar());
 			this->LED_PWM = (gcnew System::Windows::Forms::TrackBar());
 			this->LEDLabel = (gcnew System::Windows::Forms::Label());
-			this->LEDValues = (gcnew System::Windows::Forms::Label());
 			this->exposureLabel = (gcnew System::Windows::Forms::Label());
-			this->exposureValue = (gcnew System::Windows::Forms::Label());
 			this->gainLabel = (gcnew System::Windows::Forms::Label());
-			this->gainValue = (gcnew System::Windows::Forms::Label());
-			this->FPSTextBox = (gcnew System::Windows::Forms::TextBox());
-			this->FPSButton = (gcnew System::Windows::Forms::Button());
 			this->ok = (gcnew System::Windows::Forms::Button());
+			this->groupBox1 = (gcnew System::Windows::Forms::GroupBox());
+			this->FPSLabel = (gcnew System::Windows::Forms::Label());
+			this->FPS = (gcnew System::Windows::Forms::TrackBar());
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->Gain))->BeginInit();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->Exposure))->BeginInit();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->LED_PWM))->BeginInit();
+			this->groupBox1->SuspendLayout();
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->FPS))->BeginInit();
 			this->SuspendLayout();
 			// 
 			// Gain
 			// 
-			this->Gain->Location = System::Drawing::Point(12, 146);
+			this->Gain->Location = System::Drawing::Point(0, 150);
 			this->Gain->Maximum = 100;
 			this->Gain->Name = L"Gain";
 			this->Gain->Size = System::Drawing::Size(568, 45);
@@ -100,7 +104,7 @@ namespace Learn {
 			// 
 			// Exposure
 			// 
-			this->Exposure->Location = System::Drawing::Point(12, 210);
+			this->Exposure->Location = System::Drawing::Point(0, 214);
 			this->Exposure->Maximum = 100;
 			this->Exposure->Name = L"Exposure";
 			this->Exposure->Size = System::Drawing::Size(568, 45);
@@ -110,7 +114,7 @@ namespace Learn {
 			// 
 			// LED_PWM
 			// 
-			this->LED_PWM->Location = System::Drawing::Point(12, 274);
+			this->LED_PWM->Location = System::Drawing::Point(0, 278);
 			this->LED_PWM->Maximum = 100;
 			this->LED_PWM->Name = L"LED_PWM";
 			this->LED_PWM->Size = System::Drawing::Size(568, 45);
@@ -121,74 +125,29 @@ namespace Learn {
 			// LEDLabel
 			// 
 			this->LEDLabel->AutoSize = true;
-			this->LEDLabel->Location = System::Drawing::Point(224, 258);
+			this->LEDLabel->Location = System::Drawing::Point(215, 262);
 			this->LEDLabel->Name = L"LEDLabel";
-			this->LEDLabel->Size = System::Drawing::Size(58, 13);
+			this->LEDLabel->Size = System::Drawing::Size(79, 13);
 			this->LEDLabel->TabIndex = 3;
-			this->LEDLabel->Text = L"LED PWM";
-			// 
-			// LEDValues
-			// 
-			this->LEDValues->AutoSize = true;
-			this->LEDValues->Location = System::Drawing::Point(315, 258);
-			this->LEDValues->Name = L"LEDValues";
-			this->LEDValues->Size = System::Drawing::Size(19, 13);
-			this->LEDValues->TabIndex = 4;
-			this->LEDValues->Text = L"15";
+			this->LEDLabel->Text = L"LED PWM:  15";
 			// 
 			// exposureLabel
 			// 
 			this->exposureLabel->AutoSize = true;
-			this->exposureLabel->Location = System::Drawing::Point(224, 194);
+			this->exposureLabel->Location = System::Drawing::Point(215, 198);
 			this->exposureLabel->Name = L"exposureLabel";
-			this->exposureLabel->Size = System::Drawing::Size(51, 13);
+			this->exposureLabel->Size = System::Drawing::Size(72, 13);
 			this->exposureLabel->TabIndex = 5;
-			this->exposureLabel->Text = L"Exposure";
-			// 
-			// exposureValue
-			// 
-			this->exposureValue->AutoSize = true;
-			this->exposureValue->Location = System::Drawing::Point(315, 194);
-			this->exposureValue->Name = L"exposureValue";
-			this->exposureValue->Size = System::Drawing::Size(19, 13);
-			this->exposureValue->TabIndex = 6;
-			this->exposureValue->Text = L"15";
+			this->exposureLabel->Text = L"Exposure:  15";
 			// 
 			// gainLabel
 			// 
 			this->gainLabel->AutoSize = true;
-			this->gainLabel->Location = System::Drawing::Point(224, 130);
+			this->gainLabel->Location = System::Drawing::Point(215, 134);
 			this->gainLabel->Name = L"gainLabel";
-			this->gainLabel->Size = System::Drawing::Size(29, 13);
+			this->gainLabel->Size = System::Drawing::Size(50, 13);
 			this->gainLabel->TabIndex = 7;
-			this->gainLabel->Text = L"Gain";
-			// 
-			// gainValue
-			// 
-			this->gainValue->AutoSize = true;
-			this->gainValue->Location = System::Drawing::Point(315, 130);
-			this->gainValue->Name = L"gainValue";
-			this->gainValue->Size = System::Drawing::Size(19, 13);
-			this->gainValue->TabIndex = 8;
-			this->gainValue->Text = L"15";
-			// 
-			// FPSTextBox
-			// 
-			this->FPSTextBox->Location = System::Drawing::Point(227, 78);
-			this->FPSTextBox->Name = L"FPSTextBox";
-			this->FPSTextBox->Size = System::Drawing::Size(100, 20);
-			this->FPSTextBox->TabIndex = 9;
-			this->FPSTextBox->Text = L"15";
-			// 
-			// FPSButton
-			// 
-			this->FPSButton->Location = System::Drawing::Point(240, 49);
-			this->FPSButton->Name = L"FPSButton";
-			this->FPSButton->Size = System::Drawing::Size(75, 23);
-			this->FPSButton->TabIndex = 10;
-			this->FPSButton->Text = L"Set FPS";
-			this->FPSButton->UseVisualStyleBackColor = true;
-			this->FPSButton->Click += gcnew System::EventHandler(this, &FPSDialog::FPSButton_Click);
+			this->gainLabel->Text = L"Gain:  15";
 			// 
 			// ok
 			// 
@@ -200,52 +159,81 @@ namespace Learn {
 			this->ok->UseVisualStyleBackColor = true;
 			this->ok->Click += gcnew System::EventHandler(this, &FPSDialog::ok_Click);
 			// 
-			// FPSDialouge
+			// groupBox1
+			// 
+			this->groupBox1->Controls->Add(this->FPSLabel);
+			this->groupBox1->Controls->Add(this->FPS);
+			this->groupBox1->Controls->Add(this->LED_PWM);
+			this->groupBox1->Controls->Add(this->gainLabel);
+			this->groupBox1->Controls->Add(this->LEDLabel);
+			this->groupBox1->Controls->Add(this->Gain);
+			this->groupBox1->Controls->Add(this->exposureLabel);
+			this->groupBox1->Controls->Add(this->Exposure);
+			this->groupBox1->Location = System::Drawing::Point(12, 12);
+			this->groupBox1->Name = L"groupBox1";
+			this->groupBox1->Size = System::Drawing::Size(568, 330);
+			this->groupBox1->TabIndex = 12;
+			this->groupBox1->TabStop = false;
+			this->groupBox1->Text = L"Settings";
+			// 
+			// FPSLabel
+			// 
+			this->FPSLabel->AutoSize = true;
+			this->FPSLabel->Location = System::Drawing::Point(215, 67);
+			this->FPSLabel->Name = L"FPSLabel";
+			this->FPSLabel->Size = System::Drawing::Size(48, 13);
+			this->FPSLabel->TabIndex = 9;
+			this->FPSLabel->Text = L"FPS:  15";
+			// 
+			// FPS
+			// 
+			this->FPS->Location = System::Drawing::Point(0, 86);
+			this->FPS->Maximum = 120;
+			this->FPS->Name = L"FPS";
+			this->FPS->Size = System::Drawing::Size(568, 45);
+			this->FPS->TabIndex = 8;
+			this->FPS->Value = 15;
+			this->FPS->Scroll += gcnew System::EventHandler(this, &FPSDialog::FPS_Scroll);
+			// 
+			// FPSDialog
 			// 
 			this->AcceptButton = this->ok;
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
 			this->ClientSize = System::Drawing::Size(592, 383);
 			this->Controls->Add(this->ok);
-			this->Controls->Add(this->FPSButton);
-			this->Controls->Add(this->FPSTextBox);
-			this->Controls->Add(this->gainValue);
-			this->Controls->Add(this->gainLabel);
-			this->Controls->Add(this->exposureValue);
-			this->Controls->Add(this->exposureLabel);
-			this->Controls->Add(this->LEDValues);
-			this->Controls->Add(this->LEDLabel);
-			this->Controls->Add(this->LED_PWM);
-			this->Controls->Add(this->Exposure);
-			this->Controls->Add(this->Gain);
-			this->Name = L"FPSDialouge";
+			this->Controls->Add(this->groupBox1);
+			this->Name = L"FPSDialog";
 			this->Text = L"FPS/Gain/Exposure/LED";
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->Gain))->EndInit();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->Exposure))->EndInit();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->LED_PWM))->EndInit();
+			this->groupBox1->ResumeLayout(false);
+			this->groupBox1->PerformLayout();
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->FPS))->EndInit();
 			this->ResumeLayout(false);
-			this->PerformLayout();
 
 		}
 #pragma endregion
 
-	private: System::Void FPSButton_Click(System::Object^  sender, System::EventArgs^  e) {
-		fps = uint16_t::Parse(this->FPSTextBox->Text);
-	}
 	private: System::Void Gain_Scroll(System::Object^  sender, System::EventArgs^  e) {
-		this->gainValue->Text = this->Gain->Value.ToString();
+		this->gainLabel->Text = "Gain:  " + this->Gain->Value.ToString();
 		gain = this->Gain->Value;
 	}
 	private: System::Void Exposure_Scroll(System::Object^  sender, System::EventArgs^  e) {
-		this->exposureValue->Text = this->Exposure->Value.ToString();
+		this->exposureLabel->Text = "Exposure:  " + this->Exposure->Value.ToString();
 		exposure = this->Exposure->Value;
 	}
 	private: System::Void LED_PWM_Scroll(System::Object^  sender, System::EventArgs^  e) {
-		this->LEDValues->Text = this->LED_PWM->Value.ToString();
+		this->LEDLabel->Text = "LED PWM:  " + this->LED_PWM->Value.ToString();
 		LED = this->LED_PWM->Value;
 	}
 	private: System::Void ok_Click(System::Object^  sender, System::EventArgs^  e) {
 		this->Close();
 	}
-};
+	private: System::Void FPS_Scroll(System::Object^  sender, System::EventArgs^  e) {
+		this->FPSLabel->Text = "FPS:  " + this->FPS->Value.ToString();
+		fps = this->FPS->Value;
+	}
+	};
 }
