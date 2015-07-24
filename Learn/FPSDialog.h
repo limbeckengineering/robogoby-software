@@ -125,7 +125,7 @@ namespace Learn {
 			// LEDLabel
 			// 
 			this->LEDLabel->AutoSize = true;
-			this->LEDLabel->Location = System::Drawing::Point(215, 262);
+			this->LEDLabel->Location = System::Drawing::Point(245, 262);
 			this->LEDLabel->Name = L"LEDLabel";
 			this->LEDLabel->Size = System::Drawing::Size(79, 13);
 			this->LEDLabel->TabIndex = 3;
@@ -134,7 +134,7 @@ namespace Learn {
 			// exposureLabel
 			// 
 			this->exposureLabel->AutoSize = true;
-			this->exposureLabel->Location = System::Drawing::Point(215, 198);
+			this->exposureLabel->Location = System::Drawing::Point(245, 198);
 			this->exposureLabel->Name = L"exposureLabel";
 			this->exposureLabel->Size = System::Drawing::Size(72, 13);
 			this->exposureLabel->TabIndex = 5;
@@ -143,7 +143,7 @@ namespace Learn {
 			// gainLabel
 			// 
 			this->gainLabel->AutoSize = true;
-			this->gainLabel->Location = System::Drawing::Point(215, 134);
+			this->gainLabel->Location = System::Drawing::Point(259, 134);
 			this->gainLabel->Name = L"gainLabel";
 			this->gainLabel->Size = System::Drawing::Size(50, 13);
 			this->gainLabel->TabIndex = 7;
@@ -179,7 +179,7 @@ namespace Learn {
 			// FPSLabel
 			// 
 			this->FPSLabel->AutoSize = true;
-			this->FPSLabel->Location = System::Drawing::Point(215, 67);
+			this->FPSLabel->Location = System::Drawing::Point(260, 67);
 			this->FPSLabel->Name = L"FPSLabel";
 			this->FPSLabel->Size = System::Drawing::Size(48, 13);
 			this->FPSLabel->TabIndex = 9;

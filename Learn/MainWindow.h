@@ -1,24 +1,21 @@
 #pragma once
 
-
 #define WIN32_LEAN_AND_MEAN
 
 #include <opencv2\opencv.hpp>
-#include <iostream>
 #include <fstream>
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <msclr\marshal_cppstd.h>
 #include <stdint.h>
+#include "serverSettingsDialoge.h"
+#include "FPSDialog.h"
 
-
-// Need to link with Ws2_32.lib, Mswsock.lib, and Advapi32.lib
+// Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
-#pragma comment (lib, "Mswsock.lib")
-#pragma comment (lib, "AdvApi32.lib")
+
 
 #define DEFAULT_PORT "2000"
 
@@ -46,8 +43,6 @@ std::vector<uint8_t> rightFrameBuf(307200);
 //width height and fps for DUO camera on other side of server
 uint16_t width = 320, height = 240;
 int frameBufLength;
-
-std::string IP = "";
 
 //Indicates which camera to on the duo to capture from: 0 = left, 1 = right, 2 = both and overlay
 uint16_t captureLOrR = 0;
@@ -101,11 +96,11 @@ namespace Learn {
 
 
 
-	private: System::Windows::Forms::ListBox^  Consol;
-	private: System::Windows::Forms::TextBox^  IP_Address;
 
 
-	private: System::Windows::Forms::ComboBox^  resolutionSelector;
+
+
+
 	private: System::Windows::Forms::MenuStrip^  menuStrip1;
 	private: System::Windows::Forms::ToolStripMenuItem^  optionsToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  resolutionToolStripMenuItem;
@@ -139,9 +134,6 @@ namespace Learn {
 		{
 			this->pb1 = (gcnew System::Windows::Forms::PictureBox());
 			this->bgw1 = (gcnew System::ComponentModel::BackgroundWorker());
-			this->Consol = (gcnew System::Windows::Forms::ListBox());
-			this->IP_Address = (gcnew System::Windows::Forms::TextBox());
-			this->resolutionSelector = (gcnew System::Windows::Forms::ComboBox());
 			this->menuStrip1 = (gcnew System::Windows::Forms::MenuStrip());
 			this->optionsToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->resolutionToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
@@ -162,7 +154,7 @@ namespace Learn {
 			// 
 			// pb1
 			// 
-			this->pb1->Location = System::Drawing::Point(12, 27);
+			this->pb1->Location = System::Drawing::Point(80, 27);
 			this->pb1->Name = L"pb1";
 			this->pb1->Size = System::Drawing::Size(640, 480);
 			this->pb1->TabIndex = 0;
@@ -176,35 +168,6 @@ namespace Learn {
 			this->bgw1->ProgressChanged += gcnew System::ComponentModel::ProgressChangedEventHandler(this, &MainWindow::bgw1_ProgressChanged);
 			this->bgw1->RunWorkerCompleted += gcnew System::ComponentModel::RunWorkerCompletedEventHandler(this, &MainWindow::bgw1_RunWorkerCompleted);
 			// 
-			// Consol
-			// 
-			this->Consol->FormattingEnabled = true;
-			this->Consol->Location = System::Drawing::Point(658, 27);
-			this->Consol->Name = L"Consol";
-			this->Consol->Size = System::Drawing::Size(178, 472);
-			this->Consol->TabIndex = 3;
-			// 
-			// IP_Address
-			// 
-			this->IP_Address->Location = System::Drawing::Point(133, 526);
-			this->IP_Address->Name = L"IP_Address";
-			this->IP_Address->Size = System::Drawing::Size(100, 20);
-			this->IP_Address->TabIndex = 4;
-			this->IP_Address->Text = L"192.168.2.7";
-			// 
-			// resolutionSelector
-			// 
-			this->resolutionSelector->FormattingEnabled = true;
-			this->resolutionSelector->Items->AddRange(gcnew cli::array< System::Object^  >(6) {
-				L"320X240 (30fps)", L"640x480 (30fps)",
-					L"320x240 (15fps)", L"640x480 (15fps)", L"320x240 (1fps) test", L"640x480 (1fps) test"
-			});
-			this->resolutionSelector->Location = System::Drawing::Point(687, 528);
-			this->resolutionSelector->Name = L"resolutionSelector";
-			this->resolutionSelector->Size = System::Drawing::Size(121, 21);
-			this->resolutionSelector->TabIndex = 7;
-			this->resolutionSelector->Text = L"320X240 (30fps)";
-			// 
 			// menuStrip1
 			// 
 			this->menuStrip1->Items->AddRange(gcnew cli::array< System::Windows::Forms::ToolStripItem^  >(2) {
@@ -213,7 +176,7 @@ namespace Learn {
 			});
 			this->menuStrip1->Location = System::Drawing::Point(0, 0);
 			this->menuStrip1->Name = L"menuStrip1";
-			this->menuStrip1->Size = System::Drawing::Size(848, 24);
+			this->menuStrip1->Size = System::Drawing::Size(801, 24);
 			this->menuStrip1->TabIndex = 8;
 			this->menuStrip1->Text = L"menuStrip1";
 			// 
@@ -336,10 +299,7 @@ namespace Learn {
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(848, 561);
-			this->Controls->Add(this->resolutionSelector);
-			this->Controls->Add(this->IP_Address);
-			this->Controls->Add(this->Consol);
+			this->ClientSize = System::Drawing::Size(801, 561);
 			this->Controls->Add(this->pb1);
 			this->Controls->Add(this->menuStrip1);
 			this->DoubleBuffered = true;
@@ -368,9 +328,8 @@ namespace Learn {
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_protocol = IPPROTO_TCP;
 
-		IP = msclr::interop::marshal_as<std::string>(IP_Address->Text);
-
 		printf("address of server %s\n", IP);
+
 		// Resolve the server address and port
 		iResult = getaddrinfo(IP.c_str(), DEFAULT_PORT, &hints, &result);
 		if (iResult != 0) {
@@ -568,10 +527,14 @@ namespace Learn {
 		this->bothToolStripMenuItem->Checked = false;
 	}
 	private: System::Void bothToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-		//TODO
+		captureLOrR = 2;
+
+		this->leftToolStripMenuItem->Checked = false;
+		this->rightToolStripMenuItem->Checked = false;
 	}
 	private: System::Void serverSettingsToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-
+		Learn::serverSettingsDialoge ^ serDialog = gcnew Learn::serverSettingsDialoge();
+		serDialog->ShowDialog(this);
 	}
 	};
 }

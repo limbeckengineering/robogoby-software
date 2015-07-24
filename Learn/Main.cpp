@@ -1,8 +1,6 @@
 #include <iostream>
-#include "FPSDialog.h"
 #include "MainWindow.h"
 
-//using namespace cv;
 using namespace System;
 using namespace System::Windows::Forms;
 
@@ -14,9 +12,6 @@ int main(cli::array<System::String ^> ^args)
 
 	Learn::MainWindow form;
 	Application::Run(%form);
-
-
-	std::cout << "program over" << std::endl;
 
 	return 0;
 }
