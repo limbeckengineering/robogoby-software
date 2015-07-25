@@ -3,7 +3,6 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include <opencv2\opencv.hpp>
-#include <fstream>
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -16,12 +15,14 @@
 // Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
 
-
+//default port for the server
 #define DEFAULT_PORT "2000"
 
 //global variables
 
+
 //start - server
+
 WSADATA wsaData;
 SOCKET ConnectSocket = INVALID_SOCKET;
 struct addrinfo *result = NULL,
@@ -34,21 +35,31 @@ int iResult;
 //end - server
 
 char generalRecvBuf[256];
-char generalSendBuf[256];
 
-// buffer for the left frame of the camera
+//Buffer filled with data to send to server
+uint8_t currentGeneralSendBuf[10];
+
+//Last buffer to be sent; used as a check to see if anything has changed
+uint8_t lastGeneralSendBuf[10];
+
+//buffer for the left frame of the camera
 std::vector<uint8_t> leftFrameBuf(307200);
+
+//buffer for the right frame of the camera
 std::vector<uint8_t> rightFrameBuf(307200);
 
-//width height and fps for DUO camera on other side of server
+//width/height for DUO camera on other side of server
 uint16_t width = 320, height = 240;
+
+//width x height
 int frameBufLength;
 
 //Indicates which camera to on the duo to capture from: 0 = left, 1 = right, 2 = both and overlay
-uint16_t captureLOrR = 0;
+uint8_t captureLOrR = 0;
 
 //opencv image for initial storage of the left frame
 IplImage *left;
+
 //opencv image for initial storage of the right frame
 IplImage *right;
 
@@ -92,15 +103,6 @@ namespace Learn {
 
 	protected:
 
-
-
-
-
-
-
-
-
-
 	private: System::Windows::Forms::MenuStrip^  menuStrip1;
 	private: System::Windows::Forms::ToolStripMenuItem^  optionsToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  resolutionToolStripMenuItem;
@@ -115,9 +117,6 @@ namespace Learn {
 	private: System::Windows::Forms::ToolStripMenuItem^  rightToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  bothToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  serverSettingsToolStripMenuItem;
-
-
-
 
 	private:
 		/// <summary>
@@ -317,6 +316,8 @@ namespace Learn {
 	private: System::Void backgroundWorker1_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
 		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
 
+		//server start
+
 		// Initialize Winsock
 		iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 		if (iResult != 0) {
@@ -362,11 +363,18 @@ namespace Learn {
 			printf("Unable to connect to server!\n");
 		}
 
+		//server initialized 
+
 		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
 
 		// Send three initial buffer containing the width, height and fps of the DUO camera
 
-		iResult = send(ConnectSocket, (char *)&width, sizeof(uint16_t), 0);
+		populateSendBuf();
+		currentToLastBuf();
+
+		iResult = send(ConnectSocket, (char *)&currentGeneralSendBuf, 10, 0);
+
+		/*iResult = send(ConnectSocket, (char *)&width, sizeof(uint16_t), 0);
 		if (iResult == SOCKET_ERROR) {
 			printf("send failed with error: %d\n", WSAGetLastError());
 		}
@@ -379,82 +387,81 @@ namespace Learn {
 		iResult = send(ConnectSocket, (char *)&fps, sizeof(uint16_t), 0);
 		if (iResult == SOCKET_ERROR) {
 			printf("send failed with error: %d\n", WSAGetLastError());
-		}
+		}*/
 
 		printf("Frame length is %u\n", frameBufLength);
 
 		// Receive DUO frames until the peer closes the connection
 		do {
 
+			//start recieving frames 
 			int bytesLeft = frameBufLength;
 			int currentFramePointer = 0;
 
-			while (bytesLeft > 0) {
-				iResult = recv(ConnectSocket, (char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
-				if (iResult > 0) {
-					printf("Bytes received left frame: %d\n", iResult);
+			//recieve left frame or...
+			if (captureLOrR == 0) {
+				while (bytesLeft > 0) {
+					iResult = recv(ConnectSocket, (char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
+					if (iResult > 0) {
+						printf("Bytes received left frame: %d\n", iResult);
+
+					}
+					else if (iResult == 0) {
+						printf("Connection closed\n");
+					}
+					else {
+						printf("recv failed with error: %d\n", WSAGetLastError());
+					}
+
+					currentFramePointer += iResult;
+					bytesLeft -= iResult;
 
 				}
-				else if (iResult == 0) {
-					printf("Connection closed\n");
+
+				left->imageData = (char *)&leftFrameBuf[0];
+				printf("Whole frame gathered\n");
+			}
+			//receive right frame
+			else if (captureLOrR == 1) {
+				
+				while (bytesLeft > 0) {
+					iResult = recv(ConnectSocket, (char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
+					if (iResult > 0) {
+						printf("Bytes received left frame: %d\n", iResult);
+
+					}
+					else if (iResult == 0) {
+						printf("Connection closed\n");
+					}
+					else {
+						printf("recv failed with error: %d\n", WSAGetLastError());
+					}
+
+					currentFramePointer += iResult;
+					bytesLeft -= iResult;
 				}
-				else {
-					printf("recv failed with error: %d\n", WSAGetLastError());
-				}
 
-				currentFramePointer += iResult;
-				bytesLeft -= iResult;
-
+				right->imageData = (char *)&rightFrameBuf[0];
+				printf("Whole frame gathered\n");
 			}
-
-			printf("Whole frame gathered\n");
-
-			/*Test portion for writing buffer values as int's to file
-			FILE * pFile;
-			pFile = fopen("frame.txt", "w");
-
-			for (int i = 0; i < frameBufLength; i++) {
-
-				fprintf(pFile, "%u   -------------%u------------\n", leftFrameBuf[i], i);
-
-			}
-
-			fclose(pFile);*/
-
-			left->imageData = (char *)&leftFrameBuf[0];
-			right->imageData = (char *)&rightFrameBuf[0];
-
-			cvShowImage("Left", left);
-
-			/* Right frame part
-			iResult = recv(ConnectSocket, (char *)&rightFrameBuf[0], frameBufLength, 0);
-			if (iResult > 0){
-			printf("Bytes received right frame: %d\n", iResult);
-			printf("Frame data %s", leftFrameBuf);
-			}
-			else if (iResult == 0){
-			printf("Connection closed\n");
-			}
-			else{
-			printf("recv failed with error: %d\n", WSAGetLastError());
-			}*/
-
+			//put frames in Main Form
 			worker->ReportProgress(1);
 
-		} while (iResult > 0);
+			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
+			populateSendBuf();
+			if (lastGeneralSendBuf != currentGeneralSendBuf) {
+				iResult = send(ConnectSocket, (char *)&currentGeneralSendBuf, 10, 0);
+				currentToLastBuf();
+			}
 
-		// cleanup
-		closesocket(ConnectSocket);
-		WSACleanup();
-
+		} while (!worker->CancellationPending);
 
 	}
-
 
 	private: System::Void bgw1_RunWorkerCompleted(System::Object^  sender, System::ComponentModel::RunWorkerCompletedEventArgs^  e) {
 		std::cout << "Async thread ended" << std::endl;
 
-		// cleanup
+		// cleanup server
 		closesocket(ConnectSocket);
 		WSACleanup();
 	}
@@ -464,8 +471,8 @@ namespace Learn {
 		Bitmap^ bmpleft = gcnew Bitmap(width, height, left->widthStep,
 			System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
 
-		/*Bitmap^ bmpright = gcnew Bitmap(width, height, right->widthStep,
-			System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));*/
+		Bitmap^ bmpright = gcnew Bitmap(width, height, right->widthStep,
+			System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
 
 		pb1->ClientSize = System::Drawing::Size(width, height);
 		/*if (this->lframeradio->Checked == true) {
@@ -487,9 +494,6 @@ namespace Learn {
 		left = cvCreateImageHeader(cvSize(width, height), IPL_DEPTH_8U, 1);
 		right = cvCreateImageHeader(cvSize(width, height), IPL_DEPTH_8U, 1);
 
-		//create opencv window for test display
-		cvNamedWindow("Left");
-
 		bgw1->RunWorkerAsync();
 
 	}
@@ -504,37 +508,63 @@ namespace Learn {
 
 		this->x480ToolStripMenuItem->Checked = false;
 	}
+
 	private: System::Void x480ToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		width = 640;
 		height = 480;
 
 		this->x240ToolStripMenuItem->Checked = false;
 	}
+
 	private: System::Void fPSToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		Learn::FPSDialog ^ fpsDialog = gcnew Learn::FPSDialog();
 		fpsDialog->ShowDialog(this);
 	}
+
 	private: System::Void leftToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		captureLOrR = 0;
 
 		this->rightToolStripMenuItem->Checked = false;
 		this->bothToolStripMenuItem->Checked = false;
 	}
+
 	private: System::Void rightToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		captureLOrR = 1;
 
 		this->leftToolStripMenuItem->Checked = false;
 		this->bothToolStripMenuItem->Checked = false;
 	}
+
 	private: System::Void bothToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		captureLOrR = 2;
 
 		this->leftToolStripMenuItem->Checked = false;
 		this->rightToolStripMenuItem->Checked = false;
 	}
+
 	private: System::Void serverSettingsToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		Learn::serverSettingsDialoge ^ serDialog = gcnew Learn::serverSettingsDialoge();
 		serDialog->ShowDialog(this);
 	}
+
+	//populate the currentGeneralSendBuf with current settings 
+	private: System::Void populateSendBuf() {
+		currentGeneralSendBuf[0] = *(&fps);
+		currentGeneralSendBuf[1] = *((&fps) + 1);
+		currentGeneralSendBuf[2] = *(&width);
+		currentGeneralSendBuf[3] = *((&width) + 1); 
+		currentGeneralSendBuf[4] = *(&height);
+		currentGeneralSendBuf[5] = *((&height) + 1);
+		currentGeneralSendBuf[6] = LED;
+		currentGeneralSendBuf[7] = gain;
+		currentGeneralSendBuf[8] = exposure;
+		currentGeneralSendBuf[9] = captureLOrR;
+	}
+
+	//sets the lastGeneralSendBuf to the currentGeneralSendBuf
+	private: System::Void currentToLastBuf() {
+		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, 10);
+	}
+
 	};
 }

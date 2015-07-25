@@ -94,30 +94,30 @@ namespace Learn {
 			// 
 			// Gain
 			// 
-			this->Gain->Location = System::Drawing::Point(0, 150);
+			this->Gain->Location = System::Drawing::Point(9, 150);
 			this->Gain->Maximum = 100;
 			this->Gain->Name = L"Gain";
-			this->Gain->Size = System::Drawing::Size(568, 45);
+			this->Gain->Size = System::Drawing::Size(551, 45);
 			this->Gain->TabIndex = 0;
 			this->Gain->Value = 15;
 			this->Gain->Scroll += gcnew System::EventHandler(this, &FPSDialog::Gain_Scroll);
 			// 
 			// Exposure
 			// 
-			this->Exposure->Location = System::Drawing::Point(0, 214);
+			this->Exposure->Location = System::Drawing::Point(9, 214);
 			this->Exposure->Maximum = 100;
 			this->Exposure->Name = L"Exposure";
-			this->Exposure->Size = System::Drawing::Size(568, 45);
+			this->Exposure->Size = System::Drawing::Size(551, 45);
 			this->Exposure->TabIndex = 1;
 			this->Exposure->Value = 15;
 			this->Exposure->Scroll += gcnew System::EventHandler(this, &FPSDialog::Exposure_Scroll);
 			// 
 			// LED_PWM
 			// 
-			this->LED_PWM->Location = System::Drawing::Point(0, 278);
+			this->LED_PWM->Location = System::Drawing::Point(9, 278);
 			this->LED_PWM->Maximum = 100;
 			this->LED_PWM->Name = L"LED_PWM";
-			this->LED_PWM->Size = System::Drawing::Size(568, 45);
+			this->LED_PWM->Size = System::Drawing::Size(551, 45);
 			this->LED_PWM->TabIndex = 2;
 			this->LED_PWM->Value = 15;
 			this->LED_PWM->Scroll += gcnew System::EventHandler(this, &FPSDialog::LED_PWM_Scroll);
@@ -187,10 +187,10 @@ namespace Learn {
 			// 
 			// FPS
 			// 
-			this->FPS->Location = System::Drawing::Point(0, 86);
+			this->FPS->Location = System::Drawing::Point(9, 86);
 			this->FPS->Maximum = 120;
 			this->FPS->Name = L"FPS";
-			this->FPS->Size = System::Drawing::Size(568, 45);
+			this->FPS->Size = System::Drawing::Size(551, 45);
 			this->FPS->TabIndex = 8;
 			this->FPS->Value = 15;
 			this->FPS->Scroll += gcnew System::EventHandler(this, &FPSDialog::FPS_Scroll);
@@ -229,6 +229,7 @@ namespace Learn {
 		LED = this->LED_PWM->Value;
 	}
 	private: System::Void ok_Click(System::Object^  sender, System::EventArgs^  e) {
+		printf("FPS:  %u  Gain:  %u  Exposure:  %u  LED PWM:  %u  \n", fps, gain, exposure, LED);
 		this->Close();
 	}
 	private: System::Void FPS_Scroll(System::Object^  sender, System::EventArgs^  e) {
