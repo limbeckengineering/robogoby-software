@@ -290,6 +290,8 @@ namespace Learn {
 			// serverSettingsToolStripMenuItem
 			// 
 			this->serverSettingsToolStripMenuItem->Name = L"serverSettingsToolStripMenuItem";
+			this->serverSettingsToolStripMenuItem->ShortcutKeys = static_cast<System::Windows::Forms::Keys>(((System::Windows::Forms::Keys::Control | System::Windows::Forms::Keys::Shift)
+				| System::Windows::Forms::Keys::S));
 			this->serverSettingsToolStripMenuItem->Size = System::Drawing::Size(226, 22);
 			this->serverSettingsToolStripMenuItem->Text = L"Server settings";
 			this->serverSettingsToolStripMenuItem->Click += gcnew System::EventHandler(this, &MainWindow::serverSettingsToolStripMenuItem_Click);
