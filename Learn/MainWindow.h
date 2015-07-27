@@ -37,6 +37,14 @@ int iResult;
 char generalRecvBuf[256];
 
 //Buffer filled with data to send to server
+//General Send Buffer :
+//FPS		16 - bit u
+//width 		16 - bit u
+//height		16 - bit u
+//LED PWM		8 - bit u
+//Gain		8 - bit u
+//Exposure	8 - bit u
+//captureLOrR	8 - bit u
 uint8_t currentGeneralSendBuf[10];
 
 //Last buffer to be sent; used as a check to see if anything has changed
