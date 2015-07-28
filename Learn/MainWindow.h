@@ -105,6 +105,11 @@ namespace Learn {
 				delete components;
 			}
 		}
+
+
+	private: Imaging::ColorPalette ^ _palette;
+	private: Bitmap^ bmpleft;
+	private: Bitmap^ bmpright;
 	private: System::Windows::Forms::PictureBox^  pb1;
 	private: System::ComponentModel::BackgroundWorker^  bgw1;
 	protected:
@@ -484,11 +489,44 @@ namespace Learn {
 
 	private: System::Void bgw1_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
 
-		Bitmap^ bmpleft = gcnew Bitmap(width, height, left->widthStep,
-			System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
+		if (captureLOrR == 0) {
+			bmpleft = gcnew Bitmap(width, height, left->widthStep,
+				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
 
-		Bitmap^ bmpright = gcnew Bitmap(width, height, right->widthStep,
-			System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
+			//create grayscale color pallet for image
+			_palette = bmpleft->Palette;
+
+			for (int i = 0; i < 256; i++)
+			{
+				Color ^ b = gcnew Color();
+
+				_palette->Entries[i] = b->FromArgb(i, i, i);
+			}
+
+			bmpleft->Palette = _palette;
+
+			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+
+		}
+		else if (captureLOrR == 1) {
+			bmpright = gcnew Bitmap(width, height, right->widthStep,
+				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
+
+			//create grayscale color pallet for image
+			_palette = bmpright->Palette;
+
+			for (int i = 0; i < 256; i++)
+			{
+				Color ^ b = gcnew Color();
+
+				_palette->Entries[i] = b->FromArgb(i, i, i);
+			}
+
+			bmpright->Palette = _palette;
+
+			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+		}
+
 
 		pb1->ClientSize = System::Drawing::Size(width, height);
 		if (captureLOrR == 0) {

@@ -29,6 +29,16 @@ namespace Learn {
 			this->Exposure->Value = exposure;
 			this->LED_PWM->Value = LED;
 			this->FPS->Value = fps;
+
+			this->newgain = gain;
+			this->newexposure = exposure;
+			this->newLED = LED;
+			this->newfps = fps;
+
+			this->gainLabel->Text = "Gain:  " + this->Gain->Value.ToString();
+			this->exposureLabel->Text = "Exposure:  " + this->Exposure->Value.ToString();
+			this->LEDLabel->Text = "LED PWM:  " + this->LED_PWM->Value.ToString();
+			this->FPSLabel->Text = "FPS:  " + this->FPS->Value.ToString();
 		}
 
 	protected:
@@ -43,19 +53,14 @@ namespace Learn {
 			}
 		}
 
-	private: uint16_t newfps = 15;
-	private: uint8_t newgain = 15, newexposure = 15, newLED = 15;
+	private: uint16_t newfps;
+	private: uint8_t newgain, newexposure, newLED;
 	private: System::Windows::Forms::TrackBar^  Gain;
 	private: System::Windows::Forms::TrackBar^  Exposure;
 	private: System::Windows::Forms::TrackBar^  LED_PWM;
 	private: System::Windows::Forms::Label^  LEDLabel;
-
 	private: System::Windows::Forms::Label^  exposureLabel;
-
 	private: System::Windows::Forms::Label^  gainLabel;
-
-
-
 	private: System::Windows::Forms::Button^  ok;
 	private: System::Windows::Forms::GroupBox^  groupBox1;
 	private: System::Windows::Forms::TrackBar^  FPS;
