@@ -5,7 +5,6 @@
 uint16_t fps = 15;
 uint8_t gain = 15, exposure = 15, LED = 15;
 
-
 namespace Learn {
 
 	using namespace System;
@@ -26,6 +25,10 @@ namespace Learn {
 		FPSDialog()
 		{
 			InitializeComponent();
+			this->Gain->Value = gain;
+			this->Exposure->Value = exposure;
+			this->LED_PWM->Value = LED;
+			this->FPS->Value = fps;
 		}
 
 	protected:
@@ -40,6 +43,8 @@ namespace Learn {
 			}
 		}
 
+	private: uint16_t newfps = 15;
+	private: uint8_t newgain = 15, newexposure = 15, newLED = 15;
 	private: System::Windows::Forms::TrackBar^  Gain;
 	private: System::Windows::Forms::TrackBar^  Exposure;
 	private: System::Windows::Forms::TrackBar^  LED_PWM;
@@ -218,23 +223,27 @@ namespace Learn {
 
 	private: System::Void Gain_Scroll(System::Object^  sender, System::EventArgs^  e) {
 		this->gainLabel->Text = "Gain:  " + this->Gain->Value.ToString();
-		gain = this->Gain->Value;
+		newgain = this->Gain->Value;
 	}
 	private: System::Void Exposure_Scroll(System::Object^  sender, System::EventArgs^  e) {
 		this->exposureLabel->Text = "Exposure:  " + this->Exposure->Value.ToString();
-		exposure = this->Exposure->Value;
+		newexposure = this->Exposure->Value;
 	}
 	private: System::Void LED_PWM_Scroll(System::Object^  sender, System::EventArgs^  e) {
 		this->LEDLabel->Text = "LED PWM:  " + this->LED_PWM->Value.ToString();
-		LED = this->LED_PWM->Value;
+		newLED = this->LED_PWM->Value;
 	}
 	private: System::Void ok_Click(System::Object^  sender, System::EventArgs^  e) {
+		fps = this->newfps;
+		gain = this->newgain;
+		exposure = this->newexposure;
+		LED = this->newLED;
 		printf("FPS:  %u  Gain:  %u  Exposure:  %u  LED PWM:  %u  \n", fps, gain, exposure, LED);
 		this->Close();
 	}
 	private: System::Void FPS_Scroll(System::Object^  sender, System::EventArgs^  e) {
 		this->FPSLabel->Text = "FPS:  " + this->FPS->Value.ToString();
-		fps = this->FPS->Value;
+		newfps = this->FPS->Value;
 	}
 	};
 }

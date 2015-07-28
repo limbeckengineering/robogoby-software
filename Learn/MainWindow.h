@@ -418,6 +418,9 @@ namespace Learn {
 					}
 					else if (iResult == 0) {
 						printf("Connection closed\n");
+						int bytesLeft = frameBufLength;
+						int currentFramePointer = 0;
+						break;
 					}
 					else {
 						printf("recv failed with error: %d\n", WSAGetLastError());
@@ -433,7 +436,7 @@ namespace Learn {
 			}
 			//receive right frame
 			else if (captureLOrR == 1) {
-				
+
 				while (bytesLeft > 0) {
 					iResult = recv(ConnectSocket, (char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
 					if (iResult > 0) {
@@ -442,6 +445,9 @@ namespace Learn {
 					}
 					else if (iResult == 0) {
 						printf("Connection closed\n");
+						int bytesLeft = frameBufLength;
+						int currentFramePointer = 0;
+						break;
 					}
 					else {
 						printf("recv failed with error: %d\n", WSAGetLastError());
@@ -485,12 +491,12 @@ namespace Learn {
 			System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
 
 		pb1->ClientSize = System::Drawing::Size(width, height);
-		/*if (this->lframeradio->Checked == true) {
+		if (captureLOrR == 0) {
 			pb1->Image = dynamic_cast<Image^>(bmpleft);
 		}
-		else if (this->rframeradio->Checked == true) {
+		else if (captureLOrR == 1) {
 			pb1->Image = dynamic_cast<Image^>(bmpright);
-		}*/
+		}
 		pb1->Refresh();
 
 	}
@@ -557,21 +563,22 @@ namespace Learn {
 		serDialog->ShowDialog(this);
 	}
 
-	//populate the currentGeneralSendBuf with current settings 
+			 //populate the currentGeneralSendBuf with current settings 
 	private: System::Void populateSendBuf() {
-		currentGeneralSendBuf[0] = *(&fps);
-		currentGeneralSendBuf[1] = *((&fps) + 1);
-		currentGeneralSendBuf[2] = *(&width);
-		currentGeneralSendBuf[3] = *((&width) + 1); 
-		currentGeneralSendBuf[4] = *(&height);
-		currentGeneralSendBuf[5] = *((&height) + 1);
+		//TODO redo this with bit math and shifts 
+		currentGeneralSendBuf[0] = fps & 0xFF;
+		currentGeneralSendBuf[1] = fps >> 8;
+		currentGeneralSendBuf[2] = width & 0xFF;
+		currentGeneralSendBuf[3] = width >> 8;
+		currentGeneralSendBuf[4] = height & 0xFF;
+		currentGeneralSendBuf[5] = height >> 8;
 		currentGeneralSendBuf[6] = LED;
 		currentGeneralSendBuf[7] = gain;
 		currentGeneralSendBuf[8] = exposure;
 		currentGeneralSendBuf[9] = captureLOrR;
 	}
 
-	//sets the lastGeneralSendBuf to the currentGeneralSendBuf
+			 //sets the lastGeneralSendBuf to the currentGeneralSendBuf
 	private: System::Void currentToLastBuf() {
 		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, 10);
 	}

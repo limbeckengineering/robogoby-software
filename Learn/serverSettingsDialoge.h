@@ -4,7 +4,7 @@
 #include <msclr\marshal_cppstd.h>
 
 //IP address of the server
-std::string IP = "";
+std::string IP = "10.0.1.31";
 
 namespace Learn {
 
