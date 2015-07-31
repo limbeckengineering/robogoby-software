@@ -46,8 +46,8 @@ namespace Learn {
 	protected:
 
 	private: System::Windows::Forms::GroupBox^  IPGroupBox;
-
 	private: System::Windows::Forms::Button^  Ok;
+
 	protected:
 
 	protected:

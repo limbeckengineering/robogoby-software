@@ -65,12 +65,6 @@ int frameBufLength;
 //Indicates which camera to on the duo to capture from: 0 = left, 1 = right, 2 = both and overlay
 uint8_t captureLOrR = 0;
 
-//opencv image for initial storage of the left frame
-IplImage *left;
-
-//opencv image for initial storage of the right frame
-IplImage *right;
-
 namespace Learn {
 
 	using namespace System;
@@ -90,8 +84,6 @@ namespace Learn {
 		{
 			//initialize GUI
 			InitializeComponent();
-
-
 		}
 
 	protected:
@@ -108,8 +100,14 @@ namespace Learn {
 
 
 	private: Imaging::ColorPalette ^ _palette;
-	private: Bitmap^ bmpleft;
-	private: Bitmap^ bmpright;
+	private: Bitmap^ bmpLeftNative;
+	private: Bitmap^ bmpRightNative;
+	private: Bitmap^ bmpLeftResize;
+	private: Bitmap^ bmpRightResize;
+	private://opencv image for initial storage of the left frame
+			 IplImage *left;
+	private://opencv image for initial storage of the right frame
+			 IplImage *right;
 	private: System::Windows::Forms::PictureBox^  pb1;
 	private: System::ComponentModel::BackgroundWorker^  bgw1;
 	protected:
@@ -130,6 +128,7 @@ namespace Learn {
 	private: System::Windows::Forms::ToolStripMenuItem^  rightToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  bothToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  serverSettingsToolStripMenuItem;
+
 
 	private:
 		/// <summary>
@@ -166,9 +165,10 @@ namespace Learn {
 			// 
 			// pb1
 			// 
-			this->pb1->Location = System::Drawing::Point(80, 27);
+			this->pb1->BackgroundImageLayout = System::Windows::Forms::ImageLayout::None;
+			this->pb1->Location = System::Drawing::Point(12, 27);
 			this->pb1->Name = L"pb1";
-			this->pb1->Size = System::Drawing::Size(640, 480);
+			this->pb1->Size = System::Drawing::Size(720, 540);
 			this->pb1->TabIndex = 0;
 			this->pb1->TabStop = false;
 			// 
@@ -188,7 +188,7 @@ namespace Learn {
 			});
 			this->menuStrip1->Location = System::Drawing::Point(0, 0);
 			this->menuStrip1->Name = L"menuStrip1";
-			this->menuStrip1->Size = System::Drawing::Size(801, 24);
+			this->menuStrip1->Size = System::Drawing::Size(1184, 24);
 			this->menuStrip1->TabIndex = 8;
 			this->menuStrip1->Text = L"menuStrip1";
 			// 
@@ -313,7 +313,7 @@ namespace Learn {
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(801, 561);
+			this->ClientSize = System::Drawing::Size(1184, 761);
 			this->Controls->Add(this->pb1);
 			this->Controls->Add(this->menuStrip1);
 			this->DoubleBuffered = true;
@@ -389,21 +389,6 @@ namespace Learn {
 
 		iResult = send(ConnectSocket, (char *)&currentGeneralSendBuf, 10, 0);
 
-		/*iResult = send(ConnectSocket, (char *)&width, sizeof(uint16_t), 0);
-		if (iResult == SOCKET_ERROR) {
-			printf("send failed with error: %d\n", WSAGetLastError());
-		}
-
-		iResult = send(ConnectSocket, (char *)&height, sizeof(uint16_t), 0);
-		if (iResult == SOCKET_ERROR) {
-			printf("send failed with error: %d\n", WSAGetLastError());
-		}
-
-		iResult = send(ConnectSocket, (char *)&fps, sizeof(uint16_t), 0);
-		if (iResult == SOCKET_ERROR) {
-			printf("send failed with error: %d\n", WSAGetLastError());
-		}*/
-
 		printf("Frame length is %u\n", frameBufLength);
 
 		// Receive DUO frames until the peer closes the connection
@@ -438,6 +423,24 @@ namespace Learn {
 
 				left->imageData = (char *)&leftFrameBuf[0];
 				printf("Whole frame gathered\n");
+				bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
+					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
+
+				//create grayscale color pallet for image
+				_palette = bmpLeftNative->Palette;
+
+				for (int i = 0; i < 256; i++)
+				{
+					Color ^ b = gcnew Color();
+					_palette->Entries[i] = b->FromArgb(i, i, i);
+				}
+
+				bmpLeftNative->Palette = _palette;
+
+				//resize the image to be 720x540
+				bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
+				//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+
 			}
 			//receive right frame
 			else if (captureLOrR == 1) {
@@ -464,6 +467,23 @@ namespace Learn {
 
 				right->imageData = (char *)&rightFrameBuf[0];
 				printf("Whole frame gathered\n");
+				bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
+					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
+
+				//create grayscale color pallet for image
+				_palette = bmpRightNative->Palette;
+
+				for (int i = 0; i < 256; i++)
+				{
+					Color ^ b = gcnew Color();
+					_palette->Entries[i] = b->FromArgb(i, i, i);
+				}
+
+				bmpRightNative->Palette = _palette;
+
+				//resize the image to be 720x540
+				bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
+				//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
 			}
 			//put frames in Main Form
 			worker->ReportProgress(1);
@@ -490,53 +510,47 @@ namespace Learn {
 	private: System::Void bgw1_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
 
 		if (captureLOrR == 0) {
-			bmpleft = gcnew Bitmap(width, height, left->widthStep,
+		/*	bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
 				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
 
 			//create grayscale color pallet for image
-			_palette = bmpleft->Palette;
+			_palette = bmpLeftNative->Palette;
 
 			for (int i = 0; i < 256; i++)
 			{
 				Color ^ b = gcnew Color();
-
 				_palette->Entries[i] = b->FromArgb(i, i, i);
 			}
 
-			bmpleft->Palette = _palette;
+			bmpLeftNative->Palette = _palette;
 
-			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+			//resize the image to be 720x540
+			bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
+			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is*/
+			pb1->Image = dynamic_cast<Image^>(bmpLeftResize);
 
 		}
 		else if (captureLOrR == 1) {
-			bmpright = gcnew Bitmap(width, height, right->widthStep,
+			/*bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
 				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
 
 			//create grayscale color pallet for image
-			_palette = bmpright->Palette;
+			_palette = bmpRightNative->Palette;
 
 			for (int i = 0; i < 256; i++)
 			{
 				Color ^ b = gcnew Color();
-
 				_palette->Entries[i] = b->FromArgb(i, i, i);
 			}
 
-			bmpright->Palette = _palette;
+			bmpRightNative->Palette = _palette;
 
-			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
-		}
-
-
-		pb1->ClientSize = System::Drawing::Size(width, height);
-		if (captureLOrR == 0) {
-			pb1->Image = dynamic_cast<Image^>(bmpleft);
-		}
-		else if (captureLOrR == 1) {
-			pb1->Image = dynamic_cast<Image^>(bmpright);
+			//resize the image to be 720x540
+			bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
+			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is*/
+			pb1->Image = dynamic_cast<Image^>(bmpRightResize);
 		}
 		pb1->Refresh();
-
 	}
 
 	private: System::Void startNewConnectionToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
@@ -559,6 +573,7 @@ namespace Learn {
 	private: System::Void x240ToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		width = 320;
 		height = 240;
+		frameBufLength = width*height;
 
 		this->x480ToolStripMenuItem->Checked = false;
 	}
@@ -566,6 +581,7 @@ namespace Learn {
 	private: System::Void x480ToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		width = 640;
 		height = 480;
+		frameBufLength = width*height;
 
 		this->x240ToolStripMenuItem->Checked = false;
 	}

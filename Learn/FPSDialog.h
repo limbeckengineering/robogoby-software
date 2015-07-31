@@ -67,9 +67,6 @@ namespace Learn {
 	private: System::Windows::Forms::Label^  FPSLabel;
 
 	protected:
-
-
-
 	protected:
 
 	private:
