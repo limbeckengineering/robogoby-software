@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+
+
 #include "serverSettingsDialoge.h"
 #include "FPSDialog.h"
 
@@ -16,25 +18,26 @@
 #pragma comment (lib, "Ws2_32.lib")
 
 //default port for the server
-#define DEFAULT_PORT "2000"
+#define MESSAGE_PORT "2000"
+#define DATA_PORT "2001"
 
 //global variables
-
 
 //start - server
 
 WSADATA wsaData;
-SOCKET ConnectSocket = INVALID_SOCKET;
+SOCKET MessageSocket = INVALID_SOCKET;
+SOCKET DataSocket = INVALID_SOCKET;
 struct addrinfo *result = NULL,
 	*ptr = NULL,
 	hints;
 
 //result of read an write
-int iResult;
-
+int iResultMessage;
+int iResultData;
 //end - server
 
-char generalRecvBuf[256];
+uint8_t generalRecvBuf[256];
 
 //Buffer filled with data to send to server
 //General Send Buffer :
@@ -105,9 +108,9 @@ namespace Learn {
 	private: Bitmap^ bmpLeftResize;
 	private: Bitmap^ bmpRightResize;
 	private://opencv image for initial storage of the left frame
-			 IplImage *left;
+		IplImage *left;
 	private://opencv image for initial storage of the right frame
-			 IplImage *right;
+		IplImage *right;
 	private: System::Windows::Forms::PictureBox^  pb1;
 	private: System::ComponentModel::BackgroundWorker^  bgw1;
 	protected:
@@ -128,6 +131,7 @@ namespace Learn {
 	private: System::Windows::Forms::ToolStripMenuItem^  rightToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  bothToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  serverSettingsToolStripMenuItem;
+	private: System::ComponentModel::BackgroundWorker^  putPictureBGW;
 
 
 	private:
@@ -159,6 +163,7 @@ namespace Learn {
 			this->startNewConnectionToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->abortConnectionToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->serverSettingsToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
+			this->putPictureBGW = (gcnew System::ComponentModel::BackgroundWorker());
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->pb1))->BeginInit();
 			this->menuStrip1->SuspendLayout();
 			this->SuspendLayout();
@@ -309,6 +314,13 @@ namespace Learn {
 			this->serverSettingsToolStripMenuItem->Text = L"Server settings";
 			this->serverSettingsToolStripMenuItem->Click += gcnew System::EventHandler(this, &MainWindow::serverSettingsToolStripMenuItem_Click);
 			// 
+			// putPictureBGW
+			// 
+			this->putPictureBGW->WorkerReportsProgress = true;
+			this->putPictureBGW->WorkerSupportsCancellation = true;
+			this->putPictureBGW->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::putPictureBGW_DoWork);
+			this->putPictureBGW->ProgressChanged += gcnew System::ComponentModel::ProgressChangedEventHandler(this, &MainWindow::putPictureBGW_ProgressChanged);
+			// 
 			// MainWindow
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
@@ -328,15 +340,16 @@ namespace Learn {
 
 		}
 #pragma endregion
+
 	private: System::Void backgroundWorker1_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
 		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
 
 		//server start
 
 		// Initialize Winsock
-		iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-		if (iResult != 0) {
-			printf("WSAStartup failed with error: %d\n", iResult);
+		iResultMessage = WSAStartup(MAKEWORD(2, 2), &wsaData);
+		if (iResultMessage != 0) {
+			printf("WSAStartup failed with error: %d\n", iResultMessage);
 		}
 
 		ZeroMemory(&hints, sizeof(hints));
@@ -344,41 +357,71 @@ namespace Learn {
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_protocol = IPPROTO_TCP;
 
-		printf("address of server %s\n", IP);
-
 		// Resolve the server address and port
-		iResult = getaddrinfo(IP.c_str(), DEFAULT_PORT, &hints, &result);
-		if (iResult != 0) {
-			printf("getaddrinfo failed with error: %d\n", iResult);
+		iResultMessage = getaddrinfo(IP.c_str(), MESSAGE_PORT, &hints, &result);
+		if (iResultMessage != 0) {
+			printf("getaddrinfo failed with error: %d\n", iResultMessage);
 		}
 
 		// Attempt to connect to an address until one succeeds
 		for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
 
 			// Create a SOCKET for connecting to server
-			ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
+			MessageSocket = socket(ptr->ai_family, ptr->ai_socktype,
 				ptr->ai_protocol);
-			if (ConnectSocket == INVALID_SOCKET) {
+			if (MessageSocket == INVALID_SOCKET) {
 				printf("socket failed with error: %ld\n", WSAGetLastError());
 			}
 
 			// Connect to server.
-			iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-			if (iResult == SOCKET_ERROR) {
-				closesocket(ConnectSocket);
-				ConnectSocket = INVALID_SOCKET;
+			iResultMessage = connect(MessageSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+			if (iResultMessage == SOCKET_ERROR) {
+				closesocket(MessageSocket);
+				MessageSocket = INVALID_SOCKET;
 				continue;
 			}
 			break;
 		}
 
-		freeaddrinfo(result);
+		//freeaddrinfo(result);
 
-		if (ConnectSocket == INVALID_SOCKET) {
-			printf("Unable to connect to server!\n");
+		if (MessageSocket == INVALID_SOCKET) {
+			printf("Unable to connect to server for messages!\n");
 		}
 
-		//server initialized 
+		// Resolve the server address and port
+		iResultData = getaddrinfo(IP.c_str(), DATA_PORT, &hints, &result);
+		if (iResultData != 0) {
+			printf("getaddrinfo failed with error: %d\n", iResultData);
+		}
+
+		// Attempt to connect to an address until one succeeds
+		for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
+
+			// Create a SOCKET for connecting to server
+			DataSocket = socket(ptr->ai_family, ptr->ai_socktype,
+				ptr->ai_protocol);
+			if (DataSocket == INVALID_SOCKET) {
+				printf("socket failed with error: %ld\n", WSAGetLastError());
+			}
+
+			// Connect to server.
+			iResultData = connect(DataSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+			if (iResultData == SOCKET_ERROR) {
+				closesocket(DataSocket);
+				DataSocket = INVALID_SOCKET;
+				continue;
+			}
+			break;
+		}
+
+		if (DataSocket == INVALID_SOCKET) {
+			printf("Unable to connect to server for data!\n");
+		}
+
+		freeaddrinfo(result);
+
+		//client initialized 
 
 		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
 
@@ -387,26 +430,38 @@ namespace Learn {
 		populateSendBuf();
 		currentToLastBuf();
 
-		iResult = send(ConnectSocket, (char *)&currentGeneralSendBuf, 10, 0);
+		iResultMessage = send(DataSocket, (char *)&currentGeneralSendBuf, 10, 0);
 
 		printf("Frame length is %u\n", frameBufLength);
 
 		// Receive DUO frames until the peer closes the connection
 		do {
 
-			//start recieving frames 
+			while (true) {
+				iResultMessage = recv(MessageSocket, (char *)&generalRecvBuf[0], 1, 0);
+				if (iResultMessage != 0 && generalRecvBuf[0] == 1) {
+					//TODO read frame and put it in the main frame
+					putPictureBGW->RunWorkerAsync();
+					generalRecvBuf[0] = 0;
+					break;
+				}
+			}
+
+			iResultMessage = send(MessageSocket, (char *)2, 1, 0);
+
+		/*	//start recieving frames 
 			int bytesLeft = frameBufLength;
 			int currentFramePointer = 0;
 
 			//recieve left frame or...
 			if (captureLOrR == 0) {
 				while (bytesLeft > 0) {
-					iResult = recv(ConnectSocket, (char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
-					if (iResult > 0) {
-						printf("Bytes received left frame: %d\n", iResult);
+					iResultMessage = recv(MessageSocket, (char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
+					if (iResultMessage > 0) {
+						printf("Bytes received left frame: %d\n", iResultMessage);
 
 					}
-					else if (iResult == 0) {
+					else if (iResultMessage == 0) {
 						printf("Connection closed\n");
 						int bytesLeft = frameBufLength;
 						int currentFramePointer = 0;
@@ -416,8 +471,8 @@ namespace Learn {
 						printf("recv failed with error: %d\n", WSAGetLastError());
 					}
 
-					currentFramePointer += iResult;
-					bytesLeft -= iResult;
+					currentFramePointer += iResultMessage;
+					bytesLeft -= iResultMessage;
 
 				}
 
@@ -446,12 +501,12 @@ namespace Learn {
 			else if (captureLOrR == 1) {
 
 				while (bytesLeft > 0) {
-					iResult = recv(ConnectSocket, (char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
-					if (iResult > 0) {
-						printf("Bytes received left frame: %d\n", iResult);
+					iResultMessage = recv(MessageSocket, (char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
+					if (iResultMessage > 0) {
+						printf("Bytes received left frame: %d\n", iResultMessage);
 
 					}
-					else if (iResult == 0) {
+					else if (iResultMessage == 0) {
 						printf("Connection closed\n");
 						int bytesLeft = frameBufLength;
 						int currentFramePointer = 0;
@@ -461,8 +516,8 @@ namespace Learn {
 						printf("recv failed with error: %d\n", WSAGetLastError());
 					}
 
-					currentFramePointer += iResult;
-					bytesLeft -= iResult;
+					currentFramePointer += iResultMessage;
+					bytesLeft -= iResultMessage;
 				}
 
 				right->imageData = (char *)&rightFrameBuf[0];
@@ -486,12 +541,12 @@ namespace Learn {
 				//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
 			}
 			//put frames in Main Form
-			worker->ReportProgress(1);
+			worker->ReportProgress(1);*/
 
 			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
 			populateSendBuf();
 			if (lastGeneralSendBuf != currentGeneralSendBuf) {
-				iResult = send(ConnectSocket, (char *)&currentGeneralSendBuf, 10, 0);
+				iResultData = send(DataSocket, (char *)&currentGeneralSendBuf, 10, 0);
 				currentToLastBuf();
 			}
 
@@ -503,14 +558,78 @@ namespace Learn {
 		std::cout << "Async thread ended" << std::endl;
 
 		// cleanup server
-		closesocket(ConnectSocket);
+		closesocket(MessageSocket);
+		closesocket(DataSocket);
 		WSACleanup();
 	}
 
 	private: System::Void bgw1_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
 
+		/*if (captureLOrR == 0) {
+				bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
+					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
+
+				//create grayscale color pallet for image
+				_palette = bmpLeftNative->Palette;
+
+				for (int i = 0; i < 256; i++)
+				{
+					Color ^ b = gcnew Color();
+					_palette->Entries[i] = b->FromArgb(i, i, i);
+				}
+
+				bmpLeftNative->Palette = _palette;
+
+				//resize the image to be 720x540
+				bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
+				//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+			pb1->Image = dynamic_cast<Image^>(bmpLeftResize);
+
+		}
+		else if (captureLOrR == 1) {
+			/*bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
+				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
+
+			//create grayscale color pallet for image
+			_palette = bmpRightNative->Palette;
+
+			for (int i = 0; i < 256; i++)
+			{
+				Color ^ b = gcnew Color();
+				_palette->Entries[i] = b->FromArgb(i, i, i);
+			}
+
+			bmpRightNative->Palette = _palette;
+
+			//resize the image to be 720x540
+			bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
+			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+			pb1->Image = dynamic_cast<Image^>(bmpRightResize);
+		}
+		pb1->Refresh();*/
+	}
+
+	private: System::Void putPictureBGW_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
+		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
+
+		//recieve left frame or...
 		if (captureLOrR == 0) {
-		/*	bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
+
+			iResultData = recv(DataSocket, (char *)&leftFrameBuf[0], frameBufLength, 0);
+			if (iResultData > 0) {
+				printf("Bytes received left frame: %d\n", iResultMessage);
+
+			}
+			else if (iResultData == 0) {
+				printf("Connection closed\n");
+			}
+			else {
+				printf("recv failed with error: %d\n", WSAGetLastError());
+			}
+
+			left->imageData = (char *)&leftFrameBuf[0];
+			printf("Whole frame gathered\n");
+			bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
 				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
 
 			//create grayscale color pallet for image
@@ -526,12 +645,28 @@ namespace Learn {
 
 			//resize the image to be 720x540
 			bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
-			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is*/
-			pb1->Image = dynamic_cast<Image^>(bmpLeftResize);
+			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
 
 		}
+		//receive right frame
 		else if (captureLOrR == 1) {
-			/*bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
+
+
+			iResultData = recv(DataSocket, (char *)&rightFrameBuf[0], frameBufLength, 0);
+			if (iResultData > 0) {
+				printf("Bytes received left frame: %d\n", iResultMessage);
+
+			}
+			else if (iResultData == 0) {
+				printf("Connection closed\n");
+			}
+			else {
+				printf("recv failed with error: %d\n", WSAGetLastError());
+			}
+
+			right->imageData = (char *)&rightFrameBuf[0];
+			printf("Whole frame gathered\n");
+			bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
 				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
 
 			//create grayscale color pallet for image
@@ -541,6 +676,53 @@ namespace Learn {
 			{
 				Color ^ b = gcnew Color();
 				_palette->Entries[i] = b->FromArgb(i, i, i);
+			}
+
+			bmpRightNative->Palette = _palette;
+
+			//resize the image to be 720x540
+			bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
+			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+		}
+		//put frames in Main Form
+		worker->ReportProgress(1);
+
+	}
+
+	private: System::Void putPictureBGW_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
+		
+		if (captureLOrR == 0) {
+			/*	bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
+			System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
+
+			//create grayscale color pallet for image
+			_palette = bmpLeftNative->Palette;
+
+			for (int i = 0; i < 256; i++)
+			{
+			Color ^ b = gcnew Color();
+			_palette->Entries[i] = b->FromArgb(i, i, i);
+			}
+
+			bmpLeftNative->Palette = _palette;
+
+			//resize the image to be 720x540
+			bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
+			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is*/
+			pb1->Image = dynamic_cast<Image^>(bmpLeftResize);
+
+		}
+		else if (captureLOrR == 1) {
+			/*bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
+			System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
+
+			//create grayscale color pallet for image
+			_palette = bmpRightNative->Palette;
+
+			for (int i = 0; i < 256; i++)
+			{
+			Color ^ b = gcnew Color();
+			_palette->Entries[i] = b->FromArgb(i, i, i);
 			}
 
 			bmpRightNative->Palette = _palette;
@@ -636,6 +818,7 @@ namespace Learn {
 	private: System::Void currentToLastBuf() {
 		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, 10);
 	}
+
 
 	};
 }
