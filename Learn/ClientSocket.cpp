@@ -1,8 +1,8 @@
 #include "ClientSocket.h"
 
-
-ClientSocket::ClientSocket(std::string portno, std::string IP)
+ClientSocket::ClientSocket(std::string portno, std::string IP, std::string name)
 {
+	this->name = name;
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0) {
 		printf("WSAStartup failed with error: %d\n", iResult);
@@ -20,6 +20,8 @@ ClientSocket::ClientSocket(std::string portno, std::string IP)
 		WSACleanup();
 		exit(1);
 	}
+
+	printf("Client named %s created\n", this->name.c_str());
 
 }
 
@@ -54,17 +56,21 @@ void ClientSocket::connectToServer()
 		WSACleanup();
 		exit(1);
 	}
+
+	printf("Client named %s connected to server\n", name.c_str());
 }
 
 int ClientSocket::writeCli(const char * buf, int len, int flags)
 {
 	iResult = send(ConnectSocket, buf, len, flags);
+	printf("%s wrote %u bytes\n", name.c_str(), iResult);
 	return iResult;
 }
 
 int ClientSocket::readCli(char * buf, int len, int flags)
 {
 	iResult = recv(ConnectSocket, buf, len, flags);
+	printf("%s red in %u bytes\n", name.c_str(), iResult);
 	return iResult;
 }
 
@@ -73,4 +79,5 @@ ClientSocket::~ClientSocket()
 {
 	closesocket(ConnectSocket);
 	WSACleanup();
+	printf("Client named %s destroyed\n", name.c_str());
 }

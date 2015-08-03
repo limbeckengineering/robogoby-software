@@ -17,7 +17,7 @@
 class ClientSocket
 {
 public:
-	ClientSocket(std::string portno, std::string IP);
+	ClientSocket(std::string portno, std::string IP, std::string name);
 	void connectToServer();
 	int writeCli(const char * buf, int len, int flags);
 	int readCli(char * buf, int len, int flags);
@@ -30,5 +30,6 @@ private:
 		*ptr = NULL,
 		hints;
 	int iResult;
+	std::string name;
 };
 
