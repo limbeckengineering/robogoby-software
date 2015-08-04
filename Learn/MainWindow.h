@@ -2,8 +2,8 @@
 
 #define WIN32_LEAN_AND_MEAN
 
-#include <opencv2\opencv.hpp>
 #include <stdint.h>
+#include <atomic>
 #include "serverSettingsDialoge.h"
 #include "FPSDialog.h"
 #include "ClientSocket.h"
@@ -36,10 +36,10 @@ std::vector<uint8_t> rightFrameBuf(307200);
 uint16_t width = 320, height = 240;
 
 //width x height
-int frameBufLength;
-int iResult;
+int frameSize;
 
-bool bgwUpdateDisplayFinished = true;
+//result of client read and write
+int iResult;
 
 //Indicates which camera to on the duo to capture from: 0 = left, 1 = right, 2 = both and overlay
 uint8_t captureLOrR = 0;
@@ -64,9 +64,6 @@ namespace Learn {
 			//initialize GUI
 			InitializeComponent();
 
-			messageClient = new ClientSocket("2000", IP, "Message Client");
-			dataClient = new ClientSocket("2001", IP, "Data Client");
-
 		}
 
 	protected:
@@ -87,20 +84,12 @@ namespace Learn {
 	private: Bitmap^ bmpRightNative;
 	private: Bitmap^ bmpLeftResize;
 	private: Bitmap^ bmpRightResize;
-	private://opencv image for initial storage of the left frame
-		IplImage *left;
-	private://opencv image for initial storage of the right frame
-		IplImage *right;
-	private: ClientSocket * messageClient;
-	private: ClientSocket * dataClient;
+	private: ClientSocket * client;
 	private: System::Windows::Forms::PictureBox^  pb1;
-	private: System::ComponentModel::BackgroundWorker^  bgwMessageLoop;
+	private: System::ComponentModel::BackgroundWorker^  bgwClient;
 	private: System::Windows::Forms::MenuStrip^  menuStrip1;
 	private: System::Windows::Forms::ToolStripMenuItem^  optionsToolStripMenuItem;
-	private: System::Windows::Forms::ToolStripMenuItem^  resolutionToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  fPSToolStripMenuItem;
-	private: System::Windows::Forms::ToolStripMenuItem^  x240ToolStripMenuItem;
-	private: System::Windows::Forms::ToolStripMenuItem^  x480ToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  captureSideToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  serverToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  startNewConnectionToolStripMenuItem;
@@ -109,7 +98,7 @@ namespace Learn {
 	private: System::Windows::Forms::ToolStripMenuItem^  rightToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  bothToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  serverSettingsToolStripMenuItem;
-	private: System::ComponentModel::BackgroundWorker^  bgwUpdateDisplay;
+
 
 
 
@@ -127,12 +116,9 @@ namespace Learn {
 		void InitializeComponent(void)
 		{
 			this->pb1 = (gcnew System::Windows::Forms::PictureBox());
-			this->bgwMessageLoop = (gcnew System::ComponentModel::BackgroundWorker());
+			this->bgwClient = (gcnew System::ComponentModel::BackgroundWorker());
 			this->menuStrip1 = (gcnew System::Windows::Forms::MenuStrip());
 			this->optionsToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
-			this->resolutionToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
-			this->x240ToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
-			this->x480ToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->fPSToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->captureSideToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->leftToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
@@ -142,7 +128,6 @@ namespace Learn {
 			this->startNewConnectionToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->abortConnectionToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->serverSettingsToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
-			this->bgwUpdateDisplay = (gcnew System::ComponentModel::BackgroundWorker());
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->pb1))->BeginInit();
 			this->menuStrip1->SuspendLayout();
 			this->SuspendLayout();
@@ -156,13 +141,13 @@ namespace Learn {
 			this->pb1->TabIndex = 0;
 			this->pb1->TabStop = false;
 			// 
-			// bgwMessageLoop
+			// bgwClient
 			// 
-			this->bgwMessageLoop->WorkerReportsProgress = true;
-			this->bgwMessageLoop->WorkerSupportsCancellation = true;
-			this->bgwMessageLoop->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwMessageLoop_DoWork);
-			this->bgwMessageLoop->ProgressChanged += gcnew System::ComponentModel::ProgressChangedEventHandler(this, &MainWindow::bgwMessageLoop_ProgressChanged);
-			this->bgwMessageLoop->RunWorkerCompleted += gcnew System::ComponentModel::RunWorkerCompletedEventHandler(this, &MainWindow::bgwMessageLoop_RunWorkerCompleted);
+			this->bgwClient->WorkerReportsProgress = true;
+			this->bgwClient->WorkerSupportsCancellation = true;
+			this->bgwClient->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwClient_DoWork);
+			this->bgwClient->ProgressChanged += gcnew System::ComponentModel::ProgressChangedEventHandler(this, &MainWindow::bgwClient_ProgressChanged);
+			this->bgwClient->RunWorkerCompleted += gcnew System::ComponentModel::RunWorkerCompletedEventHandler(this, &MainWindow::bgwClient_RunWorkerCompleted);
 			// 
 			// menuStrip1
 			// 
@@ -178,41 +163,13 @@ namespace Learn {
 			// 
 			// optionsToolStripMenuItem
 			// 
-			this->optionsToolStripMenuItem->DropDownItems->AddRange(gcnew cli::array< System::Windows::Forms::ToolStripItem^  >(3) {
-				this->resolutionToolStripMenuItem,
-					this->fPSToolStripMenuItem, this->captureSideToolStripMenuItem
+			this->optionsToolStripMenuItem->DropDownItems->AddRange(gcnew cli::array< System::Windows::Forms::ToolStripItem^  >(2) {
+				this->fPSToolStripMenuItem,
+					this->captureSideToolStripMenuItem
 			});
 			this->optionsToolStripMenuItem->Name = L"optionsToolStripMenuItem";
 			this->optionsToolStripMenuItem->Size = System::Drawing::Size(61, 20);
 			this->optionsToolStripMenuItem->Text = L"Options";
-			// 
-			// resolutionToolStripMenuItem
-			// 
-			this->resolutionToolStripMenuItem->DropDownItems->AddRange(gcnew cli::array< System::Windows::Forms::ToolStripItem^  >(2) {
-				this->x240ToolStripMenuItem,
-					this->x480ToolStripMenuItem
-			});
-			this->resolutionToolStripMenuItem->Name = L"resolutionToolStripMenuItem";
-			this->resolutionToolStripMenuItem->Size = System::Drawing::Size(239, 22);
-			this->resolutionToolStripMenuItem->Text = L"Resolution";
-			// 
-			// x240ToolStripMenuItem
-			// 
-			this->x240ToolStripMenuItem->Checked = true;
-			this->x240ToolStripMenuItem->CheckOnClick = true;
-			this->x240ToolStripMenuItem->CheckState = System::Windows::Forms::CheckState::Checked;
-			this->x240ToolStripMenuItem->Name = L"x240ToolStripMenuItem";
-			this->x240ToolStripMenuItem->Size = System::Drawing::Size(115, 22);
-			this->x240ToolStripMenuItem->Text = L"320x240";
-			this->x240ToolStripMenuItem->Click += gcnew System::EventHandler(this, &MainWindow::x240ToolStripMenuItem_Click);
-			// 
-			// x480ToolStripMenuItem
-			// 
-			this->x480ToolStripMenuItem->CheckOnClick = true;
-			this->x480ToolStripMenuItem->Name = L"x480ToolStripMenuItem";
-			this->x480ToolStripMenuItem->Size = System::Drawing::Size(115, 22);
-			this->x480ToolStripMenuItem->Text = L"640x480";
-			this->x480ToolStripMenuItem->Click += gcnew System::EventHandler(this, &MainWindow::x480ToolStripMenuItem_Click);
 			// 
 			// fPSToolStripMenuItem
 			// 
@@ -293,14 +250,6 @@ namespace Learn {
 			this->serverSettingsToolStripMenuItem->Text = L"Server settings";
 			this->serverSettingsToolStripMenuItem->Click += gcnew System::EventHandler(this, &MainWindow::serverSettingsToolStripMenuItem_Click);
 			// 
-			// bgwUpdateDisplay
-			// 
-			this->bgwUpdateDisplay->WorkerReportsProgress = true;
-			this->bgwUpdateDisplay->WorkerSupportsCancellation = true;
-			this->bgwUpdateDisplay->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwUpdateDisplay_DoWork);
-			this->bgwUpdateDisplay->ProgressChanged += gcnew System::ComponentModel::ProgressChangedEventHandler(this, &MainWindow::bgwUpdateDisplay_ProgressChanged);
-			this->bgwUpdateDisplay->RunWorkerCompleted += gcnew System::ComponentModel::RunWorkerCompletedEventHandler(this, &MainWindow::bgwUpdateDisplay_RunWorkerCompleted);
-			// 
 			// MainWindow
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
@@ -321,119 +270,48 @@ namespace Learn {
 		}
 #pragma endregion
 
-	private: System::Void bgwMessageLoop_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
+	private: System::Void bgwClient_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
 		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
-		//Initial send phase for initial settings
-
-		//connect the servers
-		messageClient->connectToServer();
-		dataClient->connectToServer();
-
-		populateSendBuf();
-		currentToLastBuf();
-
-		iResult = dataClient->writeCli((char *)&currentGeneralSendBuf, 10, 0);
-		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
-
+		
 		//Start communication loop
 		do {
+
 			//Read phase 
 
-			//Wait for server to indicate that the data buffer is full and ready to be read from	
-			while (true) {
-				iResult = messageClient->readCli((char *)&generalRecvBuf[0], 1, 0);
-				if (generalRecvBuf[0] == 'r') {
-					generalRecvBuf[0] = 0;
-					break;
-				}
-			}
-
-			//recieve left frame or...
-			if (captureLOrR == 0) {
-
-				iResult = dataClient->readCli((char *)&leftFrameBuf[0], frameBufLength, 0);
-				if (iResult > 0) {
-					printf("Bytes received left frame: %d\n", iResult);
-
-				}
-				else if (iResult == 0) {
-					printf("Connection closed\n");
-				}
-				else {
-					printf("recv failed with error: %d\n", WSAGetLastError());
-				}
-
-			}
-			//receive right frame
-			else if (captureLOrR == 1) {
-				iResult = dataClient->readCli((char *)&rightFrameBuf[0], frameBufLength, 0);
-				if (iResult > 0) {
-					printf("Bytes received left frame: %d\n", iResult);
-
-				}
-				else if (iResult == 0) {
-					printf("Connection closed\n");
-				}
-				else {
-					printf("recv failed with error: %d\n", WSAGetLastError());
-				}
-
-			}
-
-			//Recv sensor data and such 
-			iResult = dataClient->readCli((char *)&generalRecvBuf[0], 10, 0);
-			if (iResult > 0) {
-				printf("Bytes received left frame: %d\n", iResult);
-
-			}
-			else if (iResult == 0) {
-				printf("Connection closed\n");
-			}
-			else {
-				printf("recv failed with error: %d\n", WSAGetLastError());
-			}
-
-			//TODO flush connection with the servers (maybe add this method to the Client class)
-
-			//put frames in Main Form
-			while (bgwUpdateDisplayFinished == false) {
-				//Do nothing
-			}
-			worker->ReportProgress(1);
-
-			//Write phase
-
-		/*	//start recieving frames
-			int bytesLeft = frameBufLength;
+			int bytesLeft = frameSize;
 			int currentFramePointer = 0;
 
 			//recieve left frame or...
 			if (captureLOrR == 0) {
 				while (bytesLeft > 0) {
-					iResultMessage = recv(MessageSocket, (char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
-					if (iResultMessage > 0) {
-						printf("Bytes received left frame: %d\n", iResultMessage);
-
-					}
-					else if (iResultMessage == 0) {
+					iResult = client->readCli((char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
+					if (iResult == 0) {
 						printf("Connection closed\n");
-						int bytesLeft = frameBufLength;
-						int currentFramePointer = 0;
+						//ZeroMemory(&leftFrameBuf[0], sizeof(leftFrameBuf));
 						break;
 					}
-					else {
+					else if(iResult < 0){
 						printf("recv failed with error: %d\n", WSAGetLastError());
+						break;
 					}
 
-					currentFramePointer += iResultMessage;
-					bytesLeft -= iResultMessage;
+					currentFramePointer += iResult;
+					bytesLeft -= iResult;
 
 				}
 
-				left->imageData = (char *)&leftFrameBuf[0];
+				if (iResult < 0) break;
+
 				printf("Whole frame gathered\n");
-				bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
-					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
+
+				//calculation for stride
+				int stride = width*8;  // bits per row
+				stride += 31;            // round up to next 32-bit boundary
+				stride /= 32;            // DWORDs per row
+				stride *= 4;             // bytes per row
+
+				bmpLeftNative = gcnew Bitmap(width, height, stride,
+					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr((char *)&leftFrameBuf[0]));
 
 				//create grayscale color pallet for image
 				_palette = bmpLeftNative->Palette;
@@ -455,29 +333,31 @@ namespace Learn {
 			else if (captureLOrR == 1) {
 
 				while (bytesLeft > 0) {
-					iResultMessage = recv(MessageSocket, (char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
-					if (iResultMessage > 0) {
-						printf("Bytes received left frame: %d\n", iResultMessage);
-
-					}
-					else if (iResultMessage == 0) {
+					iResult = client->readCli((char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
+					if (iResult == 0) {
 						printf("Connection closed\n");
-						int bytesLeft = frameBufLength;
-						int currentFramePointer = 0;
+						//ZeroMemory(&rightFrameBuf[0], sizeof(rightFrameBuf));
 						break;
 					}
-					else {
+					else if(iResult < 0){
 						printf("recv failed with error: %d\n", WSAGetLastError());
 					}
 
-					currentFramePointer += iResultMessage;
-					bytesLeft -= iResultMessage;
+					currentFramePointer += iResult;
+					bytesLeft -= iResult;
 				}
 
-				right->imageData = (char *)&rightFrameBuf[0];
+				if (iResult < 0) break;
+
+				//calculation for stride
+				int stride = width * 8;  // bits per row
+				stride += 31;            // round up to next 32-bit boundary
+				stride /= 32;            // DWORDs per row
+				stride *= 4;             // bytes per row
+
 				printf("Whole frame gathered\n");
-				bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
-					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
+				bmpRightNative = gcnew Bitmap(width, height, stride,
+					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr((char *)&rightFrameBuf[0]));
 
 				//create grayscale color pallet for image
 				_palette = bmpRightNative->Palette;
@@ -494,87 +374,147 @@ namespace Learn {
 				bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
 				//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
 			}
-			//put frames in Main Form
-			worker->ReportProgress(1);*/
 
+			worker->ReportProgress(1);
+
+			bytesLeft = 10;
+			currentFramePointer = 0;
+
+			//Recv sensor data and such 
+			while (bytesLeft > 0) {
+				iResult = client->readCli((char *)&generalRecvBuf[currentFramePointer], bytesLeft, 0);
+				if (iResult == 0) {
+					printf("Connection closed\n");
+					break;
+				}
+				else if (iResult < 0){
+					printf("recv failed with error: %d\n", WSAGetLastError());
+					break;
+				}
+
+				currentFramePointer += iResult;
+				bytesLeft -= iResult;
+			}
+
+			if (iResult < 0) break;
+
+			/*	//start recieving frames
+				int bytesLeft = frameBufLength;
+				int currentFramePointer = 0;
+
+				//recieve left frame or...
+				if (captureLOrR == 0) {
+					while (bytesLeft > 0) {
+						iResultMessage = recv(MessageSocket, (char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
+						if (iResultMessage > 0) {
+							printf("Bytes received left frame: %d\n", iResultMessage);
+
+						}
+						else if (iResultMessage == 0) {
+							printf("Connection closed\n");
+							int bytesLeft = frameBufLength;
+							int currentFramePointer = 0;
+							break;
+						}
+						else {
+							printf("recv failed with error: %d\n", WSAGetLastError());
+						}
+
+						currentFramePointer += iResultMessage;
+						bytesLeft -= iResultMessage;
+
+					}
+
+					left->imageData = (char *)&leftFrameBuf[0];
+					printf("Whole frame gathered\n");
+					bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
+						System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
+
+					//create grayscale color pallet for image
+					_palette = bmpLeftNative->Palette;
+
+					for (int i = 0; i < 256; i++)
+					{
+						Color ^ b = gcnew Color();
+						_palette->Entries[i] = b->FromArgb(i, i, i);
+					}
+
+					bmpLeftNative->Palette = _palette;
+
+					//resize the image to be 720x540
+					bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
+					//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+
+				}
+				//receive right frame
+				else if (captureLOrR == 1) {
+
+					while (bytesLeft > 0) {
+						iResultMessage = recv(MessageSocket, (char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
+						if (iResultMessage > 0) {
+							printf("Bytes received left frame: %d\n", iResultMessage);
+
+						}
+						else if (iResultMessage == 0) {
+							printf("Connection closed\n");
+							int bytesLeft = frameBufLength;
+							int currentFramePointer = 0;
+							break;
+						}
+						else {
+							printf("recv failed with error: %d\n", WSAGetLastError());
+						}
+
+						currentFramePointer += iResultMessage;
+						bytesLeft -= iResultMessage;
+					}
+
+					right->imageData = (char *)&rightFrameBuf[0];
+					printf("Whole frame gathered\n");
+					bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
+						System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
+
+					//create grayscale color pallet for image
+					_palette = bmpRightNative->Palette;
+
+					for (int i = 0; i < 256; i++)
+					{
+						Color ^ b = gcnew Color();
+						_palette->Entries[i] = b->FromArgb(i, i, i);
+					}
+
+					bmpRightNative->Palette = _palette;
+
+					//resize the image to be 720x540
+					bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
+					//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
+				}
+				//put frames in Main Form
+				worker->ReportProgress(1);*/
+
+			//Write phase
 			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
 			populateSendBuf();
 			if (lastGeneralSendBuf != currentGeneralSendBuf) {
-				iResult = dataClient->writeCli((char *)&currentGeneralSendBuf, 10, 0);
+				iResult = client->writeCli((char *)&currentGeneralSendBuf, 10, 0);
 				currentToLastBuf();
+				if (iResult < 0) break;
 			}
 
-			char check = 'r';
-			iResult = messageClient->writeCli(&check, 1, 0);
+			//check to see if we are cancelled
+			if (worker->CancellationPending) {
+				e->Cancel = true;
+				return;
+			}
 
 		} while (true);
 
 	}
-
-	private: System::Void bgwMessageLoop_RunWorkerCompleted(System::Object^  sender, System::ComponentModel::RunWorkerCompletedEventArgs^  e) {
+	private: System::Void bgwClient_RunWorkerCompleted(System::Object^  sender, System::ComponentModel::RunWorkerCompletedEventArgs^  e) {
 		std::cout << "Async thread ended" << std::endl;
+		delete client;
 	}
-
-	private: System::Void bgwMessageLoop_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
-		bgwUpdateDisplayFinished = false;
-		bgwUpdateDisplay->RunWorkerAsync();
-
-	}
-
-	private: System::Void bgwUpdateDisplay_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
-		//anything here will update the maine display
-		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
-		//recieve left frame or...
-		if (captureLOrR == 0) {
-
-			left->imageData = (char *)&leftFrameBuf[0];
-			printf("Whole frame gathered\n");
-			bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
-				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
-
-			//create grayscale color pallet for image
-			_palette = bmpLeftNative->Palette;
-
-			for (int i = 0; i < 256; i++)
-			{
-				Color ^ b = gcnew Color();
-				_palette->Entries[i] = b->FromArgb(i, i, i);
-			}
-
-			bmpLeftNative->Palette = _palette;
-
-			//resize the image to be 720x540
-			bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
-			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
-
-		}
-		//receive right frame
-		else if (captureLOrR == 1) {
-
-			right->imageData = (char *)&rightFrameBuf[0];
-			printf("Whole frame gathered\n");
-			bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
-				System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
-
-			//create grayscale color pallet for image
-			_palette = bmpRightNative->Palette;
-
-			for (int i = 0; i < 256; i++)
-			{
-				Color ^ b = gcnew Color();
-				_palette->Entries[i] = b->FromArgb(i, i, i);
-			}
-
-			bmpRightNative->Palette = _palette;
-
-			//resize the image to be 720x540
-			bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
-			//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
-		}
-		worker->ReportProgress(1);
-	}
-
-	private: System::Void bgwUpdateDisplay_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
+	private: System::Void bgwClient_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
 		if (captureLOrR == 0) {
 			pb1->Image = dynamic_cast<Image^>(bmpLeftResize);
 
@@ -583,43 +523,33 @@ namespace Learn {
 			pb1->Image = dynamic_cast<Image^>(bmpRightResize);
 		}
 		pb1->Refresh();
-
-	}
-
-	private: System::Void bgwUpdateDisplay_RunWorkerCompleted(System::Object^  sender, System::ComponentModel::RunWorkerCompletedEventArgs^  e) {
-		bgwUpdateDisplayFinished = true;
 	}
 
 	private: System::Void startNewConnectionToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
+		//create client
+		client = new ClientSocket("2000", IP, "Client");
+		
+		//connect the servers
+		client->connectToServer();
 
 		//set the length of the buffers for each frame we are going to read in
-		frameBufLength = width*height;
+		frameSize = width*height;
 
-		// Create image headers for left & right frames
-		left = cvCreateImageHeader(cvSize(width, height), IPL_DEPTH_8U, 1);
-		right = cvCreateImageHeader(cvSize(width, height), IPL_DEPTH_8U, 1);
+		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
+		//Initial send phase for initial settings
 
-		bgwMessageLoop->RunWorkerAsync();
+		populateSendBuf();
+		currentToLastBuf();
+
+		iResult = client->writeCli((char *)&currentGeneralSendBuf, 10, 0);
+		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
+
+		bgwClient->RunWorkerAsync();
+
 	}
 
 	private: System::Void abortConnectionToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-		bgwMessageLoop->CancelAsync();
-	}
-
-	private: System::Void x240ToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-		width = 320;
-		height = 240;
-		frameBufLength = width*height;
-
-		this->x480ToolStripMenuItem->Checked = false;
-	}
-
-	private: System::Void x480ToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-		width = 640;
-		height = 480;
-		frameBufLength = width*height;
-
-		this->x240ToolStripMenuItem->Checked = false;
+		bgwClient->CancelAsync();
 	}
 
 	private: System::Void fPSToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
@@ -672,7 +602,6 @@ namespace Learn {
 	private: System::Void currentToLastBuf() {
 		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, 10);
 	}
-
 
 
 	};

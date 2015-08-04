@@ -130,6 +130,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ClientSocket.cpp" />
+    <ClCompile Include="GamePad.cpp" />
     <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -145,6 +146,7 @@
     <ClInclude Include="FPSDialog.h">
       <FileType>CppForm</FileType>
     </ClInclude>
+    <ClInclude Include="GamePad.h" />
     <ClInclude Include="serverSettingsDialoge.h">
       <FileType>CppForm</FileType>
     </ClInclude>
