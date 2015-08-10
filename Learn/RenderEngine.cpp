@@ -41,8 +41,8 @@ RenderEngine::RenderEngine(HWND hWnd)
 	//Describe our Depth/Stencil Buffer
 	D3D11_TEXTURE2D_DESC depthStencilDesc;
 
-	depthStencilDesc.Width = 300;
-	depthStencilDesc.Height = 300;
+	depthStencilDesc.Width = width;
+	depthStencilDesc.Height = height;
 	depthStencilDesc.MipLevels = 1;
 	depthStencilDesc.ArraySize = 1;
 	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -56,7 +56,6 @@ RenderEngine::RenderEngine(HWND hWnd)
 	//Create the Depth/Stencil View
 	dev->CreateTexture2D(&depthStencilDesc, NULL, &depthStencilBuffer);
 	dev->CreateDepthStencilView(depthStencilBuffer, NULL, &depthStencilView);
-
 
 	// set the render target as the back buffer
 	devcon->OMSetRenderTargets(1, &backbuffer, NULL);

@@ -4,15 +4,12 @@
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
 
-//#include <d3d10.h>
-//might need to include these but will try without (if not instructions for include found on Stack Overflow)
-
 // include the Direct3D Library file
 #pragma comment (lib, "d3d11.lib")
 #pragma comment (lib, "d3dcompiler.lib")
-//#pragma comment (lib, "d3dx11.lib")
-//#pragma comment (lib, "d3dx10.lib")
 
+
+using namespace DirectX;
 
 class RenderEngine
 {
@@ -35,27 +32,27 @@ private:
 	ID3D11InputLayout *pLayout;            // the pointer to the input layout
 	ID3D11VertexShader *pVS;               // the pointer to the vertex shader
 	ID3D11PixelShader *pPS;                // the pointer to the pixel shader
-	ID3D11Buffer *pVBuffer;                // the pointer to the square vertex buffer
+	ID3D11Buffer *pVBuffer;                // the pointer to the cube vertex buffer
 	ID3D11Buffer *pIBuffer;					//pointer to the Index Buffer
 	ID3D11DepthStencilView* depthStencilView;
 	ID3D11Texture2D* depthStencilBuffer;
 	ID3D11Buffer* cbPerObjectBuffer;
 
-	DirectX::XMMATRIX WVP;
-	DirectX::XMMATRIX World;
-	DirectX::XMMATRIX camView;
-	DirectX::XMMATRIX camProjection;
+	XMMATRIX WVP;
+	XMMATRIX World;
+	XMMATRIX camView;
+	XMMATRIX camProjection;
 
-	DirectX::XMVECTOR camPosition;
-	DirectX::XMVECTOR camTarget;
-	DirectX::XMVECTOR camUp;
+	XMVECTOR camPosition;
+	XMVECTOR camTarget;
+	XMVECTOR camUp;
 
-	DirectX::XMMATRIX cube1World;
-	DirectX::XMMATRIX cube2World;
+	XMMATRIX cube1World;
+	XMMATRIX cube2World;
 
-	DirectX::XMMATRIX Rotation;
-	DirectX::XMMATRIX Scale;
-	DirectX::XMMATRIX Translation;
+	XMMATRIX Rotation;
+	XMMATRIX Scale;
+	XMMATRIX Translation;
 	float rotation = 0.01f;
 
 	// a struct to define a single vertex
@@ -64,7 +61,7 @@ private:
 	//Create effects constant buffer's structure//
 	struct cbPerObject
 	{
-		DirectX::XMMATRIX  WVP;
+		XMMATRIX  WVP;
 	};
 
 	cbPerObject cbPerObj;
