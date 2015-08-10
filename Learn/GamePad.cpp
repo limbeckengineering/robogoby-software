@@ -34,7 +34,13 @@ XButtonIDs::XButtonIDs()
 
 GamePad::GamePad()
 {
-
+	// Iterate through all gamepad buttons
+	for (int i = 0; i < ButtonCount; i++)
+	{
+		bPrev_ButtonStates[i] = false;
+		bButtonStates[i] = false;
+		bGamepad_ButtonsDown[i] = false;
+	}
 }
 
 GamePad::GamePad(int a_iIndex) 
@@ -54,8 +60,9 @@ GamePad::GamePad(int a_iIndex)
 
 GamePad::~GamePad()
 {
-
+	printf("Gamepad controller with index %u has been destroyed", m_iGamepadIndex);
 }
+
 // Update gamepad state
 void GamePad::Update()
 {
@@ -73,6 +80,7 @@ void GamePad::Update()
 			bButtonStates[i];
 	}
 }
+
 bool GamePad::LStick_InDeadzone()
 {
 	// Obtain the X & Y axes of the stick
@@ -111,6 +119,7 @@ bool GamePad::RStick_InDeadzone()
 	// One (or both axes) axis is inside of deadzone
 	return true;
 }
+
 // Return gamepad state
 XINPUT_STATE GamePad::GetState()
 {
@@ -126,11 +135,13 @@ XINPUT_STATE GamePad::GetState()
 	// Return the gamepad state
 	return GamepadState;
 }
+
 // Return gamepad index
 int GamePad::GetIndex()
 {
 	return m_iGamepadIndex;
 }
+
 // Return true if the gamepad is connected
 bool GamePad::Connected()
 {
@@ -145,6 +156,7 @@ bool GamePad::Connected()
 	else
 		return false; // The gamepad is not connected
 }
+
 // Return X axis of left stick
 float GamePad::LeftStick_X()
 {
@@ -154,7 +166,6 @@ float GamePad::LeftStick_X()
 	// Return axis value, converted to a float
 	return (static_cast<float>(sX) / 32768.0f);
 }
-
 // Return Y axis of left stick
 float GamePad::LeftStick_Y()
 {
@@ -174,7 +185,6 @@ float GamePad::RightStick_X()
 	// Return axis value, converted to a float
 	return (static_cast<float>(sX) / 32768.0f);
 }
-
 // Return Y axis of right stick
 float GamePad::RightStick_Y()
 {
@@ -184,6 +194,7 @@ float GamePad::RightStick_Y()
 	// Return axis value, converted to a float
 	return (static_cast<float>(sY) / 32768.0f);
 }
+
 // Return value of left trigger
 float GamePad::LeftTrigger()
 {
@@ -195,7 +206,6 @@ float GamePad::LeftTrigger()
 
 	return 0.0f; // Trigger was not pressed
 }
-
 // Return value of right trigger
 float GamePad::RightTrigger()
 {
@@ -207,6 +217,7 @@ float GamePad::RightTrigger()
 
 	return 0.0f; // Trigger was not pressed
 }
+
 // Vibrate the gamepad (values of 0.0f to 1.0f only)
 void GamePad::Rumble(float a_fLeftMotor, float a_fRightMotor)
 {
@@ -227,6 +238,7 @@ void GamePad::Rumble(float a_fLeftMotor, float a_fRightMotor)
 	// Set the vibration state
 	XInputSetState(m_iGamepadIndex, &VibrationState);
 }
+
 // Return true if button is pressed, false if not
 bool GamePad::GetButtonPressed(int a_iButton)
 {
@@ -237,12 +249,14 @@ bool GamePad::GetButtonPressed(int a_iButton)
 
 	return false; // The button is not pressed
 }
+
 // Update button states for next frame
 void GamePad::RefreshState()
 {
 	memcpy(bPrev_ButtonStates, bButtonStates,
 		sizeof(bPrev_ButtonStates));
 }
+
 // Frame-specific version of 'GetButtonPressed' function
 bool GamePad::GetButtonDown(int a_iButton)
 {

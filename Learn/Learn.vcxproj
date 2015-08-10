@@ -103,9 +103,14 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opencv_world300d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\opencv\build\x64\vc12\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
+    <FxCompile>
+      <ShaderType>
+      </ShaderType>
+      <EntryPointName>main</EntryPointName>
+    </FxCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -132,6 +137,7 @@
     <ClCompile Include="ClientSocket.cpp" />
     <ClCompile Include="GamePad.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="RenderEngine.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -147,6 +153,10 @@
       <FileType>CppForm</FileType>
     </ClInclude>
     <ClInclude Include="GamePad.h" />
+    <ClInclude Include="GamepadTest.h">
+      <FileType>CppForm</FileType>
+    </ClInclude>
+    <ClInclude Include="RenderEngine.h" />
     <ClInclude Include="serverSettingsDialoge.h">
       <FileType>CppForm</FileType>
     </ClInclude>
@@ -158,12 +168,18 @@
     <EmbeddedResource Include="FPSDialog.resx">
       <DependentUpon>FPSDialog.h</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="GamepadTest.resx">
+      <DependentUpon>GamepadTest.h</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="serverSettingsDialoge.resx">
       <DependentUpon>serverSettingsDialoge.h</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="MainWindow.resx">
       <DependentUpon>MainWindow.h</DependentUpon>
     </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders.shader" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

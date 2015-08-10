@@ -24,6 +24,9 @@
     <ClCompile Include="GamePad.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="RenderEngine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="serverSettingsDialoge.h">
@@ -41,6 +44,12 @@
     <ClInclude Include="GamePad.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GamepadTest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderEngine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="serverSettingsDialoge.resx">
@@ -52,5 +61,13 @@
     <EmbeddedResource Include="FPSDialog.resx">
       <Filter>Resource Files</Filter>
     </EmbeddedResource>
+    <EmbeddedResource Include="GamepadTest.resx">
+      <Filter>Resource Files</Filter>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders.shader">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

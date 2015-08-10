@@ -1,7 +1,9 @@
 #pragma once
 
-#include <Xinput.h>
+#include <iostream>
 #include <windows.h>
+#include <Xinput.h>
+#include <atomic>
 
 // XInput Button values
 static const WORD XINPUT_Buttons[] = {
@@ -29,12 +31,12 @@ struct XButtonIDs
 
 	XButtonIDs(); // Default constructor
 
-				  // Member variables
-				  //---------------------//
+	// Member variables
+	//---------------------//
 
 	int A, B, X, Y; // 'Action' buttons
 
-					// Directional Pad (D-Pad)
+	// Directional Pad (D-Pad)
 	int DPad_Up, DPad_Down, DPad_Left, DPad_Right;
 
 	// Shoulder ('Bumper') buttons

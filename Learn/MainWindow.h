@@ -2,11 +2,17 @@
 
 #define WIN32_LEAN_AND_MEAN
 
+#include <windows.h>
+#include <windowsx.h>
 #include <stdint.h>
 #include <atomic>
+//GUIs
 #include "serverSettingsDialoge.h"
 #include "FPSDialog.h"
+//classes
 #include "ClientSocket.h"
+#include "GamePad.h"
+#include "RenderEngine.h"
 
 //global variables
 
@@ -44,6 +50,22 @@ int iResult;
 //Indicates which camera to on the duo to capture from: 0 = left, 1 = right, 2 = both and overlay
 uint8_t captureLOrR = 0;
 
+//gamepad
+//is controller connected
+std::atomic<bool> isConnected(false);
+
+// A B X Y DU DD DL DR LS RS LT RT S B
+std::atomic<bool> buttonsPressed[14];
+
+// A B X Y DU DD DL DR LS RS LT RT S B
+std::atomic<bool> buttonsDown[14];
+
+//Lx Ly Rx Ry LT RT
+std::atomic<float> stickAndTriggers[6];
+
+//end gamepad
+
+
 namespace Learn {
 
 	using namespace System;
@@ -54,7 +76,7 @@ namespace Learn {
 	using namespace System::Drawing;
 
 	/// <summary>
-	/// Summary for TestForm
+	/// this is the main window for the RoboGoby client 
 	/// </summary>
 	public ref class MainWindow : public System::Windows::Forms::Form
 	{
@@ -63,6 +85,9 @@ namespace Learn {
 		{
 			//initialize GUI
 			InitializeComponent();
+			re = new RenderEngine((HWND)subRenderWindow->Handle.ToPointer());
+			bgwGamepad->RunWorkerAsync();
+			bgwRenderLoop->RunWorkerAsync();
 
 		}
 
@@ -85,6 +110,7 @@ namespace Learn {
 	private: Bitmap^ bmpLeftResize;
 	private: Bitmap^ bmpRightResize;
 	private: ClientSocket * client;
+	private: RenderEngine * re;
 	private: System::Windows::Forms::PictureBox^  pb1;
 	private: System::ComponentModel::BackgroundWorker^  bgwClient;
 	private: System::Windows::Forms::MenuStrip^  menuStrip1;
@@ -98,8 +124,11 @@ namespace Learn {
 	private: System::Windows::Forms::ToolStripMenuItem^  rightToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  bothToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  serverSettingsToolStripMenuItem;
-
-
+	private: System::Windows::Forms::ToolStripMenuItem^  toolsToolStripMenuItem;
+	private: System::ComponentModel::BackgroundWorker^  bgwGamepad;
+	private: System::Windows::Forms::RichTextBox^  outputConsol;
+	private: System::Windows::Forms::PictureBox^  subRenderWindow;
+	private: System::ComponentModel::BackgroundWorker^  bgwRenderLoop;
 
 
 	private:
@@ -128,8 +157,14 @@ namespace Learn {
 			this->startNewConnectionToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->abortConnectionToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->serverSettingsToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
+			this->toolsToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
+			this->bgwGamepad = (gcnew System::ComponentModel::BackgroundWorker());
+			this->outputConsol = (gcnew System::Windows::Forms::RichTextBox());
+			this->subRenderWindow = (gcnew System::Windows::Forms::PictureBox());
+			this->bgwRenderLoop = (gcnew System::ComponentModel::BackgroundWorker());
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->pb1))->BeginInit();
 			this->menuStrip1->SuspendLayout();
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->subRenderWindow))->BeginInit();
 			this->SuspendLayout();
 			// 
 			// pb1
@@ -151,13 +186,13 @@ namespace Learn {
 			// 
 			// menuStrip1
 			// 
-			this->menuStrip1->Items->AddRange(gcnew cli::array< System::Windows::Forms::ToolStripItem^  >(2) {
+			this->menuStrip1->Items->AddRange(gcnew cli::array< System::Windows::Forms::ToolStripItem^  >(3) {
 				this->optionsToolStripMenuItem,
-					this->serverToolStripMenuItem
+					this->serverToolStripMenuItem, this->toolsToolStripMenuItem
 			});
 			this->menuStrip1->Location = System::Drawing::Point(0, 0);
 			this->menuStrip1->Name = L"menuStrip1";
-			this->menuStrip1->Size = System::Drawing::Size(1184, 24);
+			this->menuStrip1->Size = System::Drawing::Size(1146, 24);
 			this->menuStrip1->TabIndex = 8;
 			this->menuStrip1->Text = L"menuStrip1";
 			// 
@@ -250,11 +285,44 @@ namespace Learn {
 			this->serverSettingsToolStripMenuItem->Text = L"Server settings";
 			this->serverSettingsToolStripMenuItem->Click += gcnew System::EventHandler(this, &MainWindow::serverSettingsToolStripMenuItem_Click);
 			// 
+			// toolsToolStripMenuItem
+			// 
+			this->toolsToolStripMenuItem->Name = L"toolsToolStripMenuItem";
+			this->toolsToolStripMenuItem->Size = System::Drawing::Size(48, 20);
+			this->toolsToolStripMenuItem->Text = L"Tools";
+			// 
+			// bgwGamepad
+			// 
+			this->bgwGamepad->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwGamepad_DoWork);
+			// 
+			// outputConsol
+			// 
+			this->outputConsol->Location = System::Drawing::Point(12, 574);
+			this->outputConsol->Name = L"outputConsol";
+			this->outputConsol->ScrollBars = System::Windows::Forms::RichTextBoxScrollBars::None;
+			this->outputConsol->Size = System::Drawing::Size(720, 184);
+			this->outputConsol->TabIndex = 9;
+			this->outputConsol->Text = L"";
+			// 
+			// subRenderWindow
+			// 
+			this->subRenderWindow->Location = System::Drawing::Point(739, 28);
+			this->subRenderWindow->Name = L"subRenderWindow";
+			this->subRenderWindow->Size = System::Drawing::Size(400, 400);
+			this->subRenderWindow->TabIndex = 10;
+			this->subRenderWindow->TabStop = false;
+			// 
+			// bgwRenderLoop
+			// 
+			this->bgwRenderLoop->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwRenderLoop_DoWork);
+			// 
 			// MainWindow
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(1184, 761);
+			this->ClientSize = System::Drawing::Size(1146, 761);
+			this->Controls->Add(this->subRenderWindow);
+			this->Controls->Add(this->outputConsol);
 			this->Controls->Add(this->pb1);
 			this->Controls->Add(this->menuStrip1);
 			this->DoubleBuffered = true;
@@ -264,6 +332,7 @@ namespace Learn {
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->pb1))->EndInit();
 			this->menuStrip1->ResumeLayout(false);
 			this->menuStrip1->PerformLayout();
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->subRenderWindow))->EndInit();
 			this->ResumeLayout(false);
 			this->PerformLayout();
 
@@ -272,40 +341,23 @@ namespace Learn {
 
 	private: System::Void bgwClient_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
 		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
-		
+
 		//Start communication loop
 		do {
 
 			//Read phase 
 
-			int bytesLeft = frameSize;
-			int currentFramePointer = 0;
-
 			//recieve left frame or...
 			if (captureLOrR == 0) {
-				while (bytesLeft > 0) {
-					iResult = client->readCli((char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
-					if (iResult == 0) {
-						printf("Connection closed\n");
-						//ZeroMemory(&leftFrameBuf[0], sizeof(leftFrameBuf));
-						break;
-					}
-					else if(iResult < 0){
-						printf("recv failed with error: %d\n", WSAGetLastError());
-						break;
-					}
 
-					currentFramePointer += iResult;
-					bytesLeft -= iResult;
-
-				}
+				iResult = recvWithLoopCheck(client, (char *)&leftFrameBuf, frameSize, 0);
 
 				if (iResult < 0) break;
 
 				printf("Whole frame gathered\n");
 
 				//calculation for stride
-				int stride = width*8;  // bits per row
+				int stride = width * 8;  // bits per row
 				stride += 31;            // round up to next 32-bit boundary
 				stride /= 32;            // DWORDs per row
 				stride *= 4;             // bytes per row
@@ -332,20 +384,7 @@ namespace Learn {
 			//receive right frame
 			else if (captureLOrR == 1) {
 
-				while (bytesLeft > 0) {
-					iResult = client->readCli((char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
-					if (iResult == 0) {
-						printf("Connection closed\n");
-						//ZeroMemory(&rightFrameBuf[0], sizeof(rightFrameBuf));
-						break;
-					}
-					else if(iResult < 0){
-						printf("recv failed with error: %d\n", WSAGetLastError());
-					}
-
-					currentFramePointer += iResult;
-					bytesLeft -= iResult;
-				}
+				iResult = recvWithLoopCheck(client, (char *)&rightFrameBuf, frameSize, 0);
 
 				if (iResult < 0) break;
 
@@ -377,120 +416,9 @@ namespace Learn {
 
 			worker->ReportProgress(1);
 
-			bytesLeft = 10;
-			currentFramePointer = 0;
-
-			//Recv sensor data and such 
-			while (bytesLeft > 0) {
-				iResult = client->readCli((char *)&generalRecvBuf[currentFramePointer], bytesLeft, 0);
-				if (iResult == 0) {
-					printf("Connection closed\n");
-					break;
-				}
-				else if (iResult < 0){
-					printf("recv failed with error: %d\n", WSAGetLastError());
-					break;
-				}
-
-				currentFramePointer += iResult;
-				bytesLeft -= iResult;
-			}
+			iResult = recvWithLoopCheck(client, (char *)&generalRecvBuf, 10, 0);
 
 			if (iResult < 0) break;
-
-			/*	//start recieving frames
-				int bytesLeft = frameBufLength;
-				int currentFramePointer = 0;
-
-				//recieve left frame or...
-				if (captureLOrR == 0) {
-					while (bytesLeft > 0) {
-						iResultMessage = recv(MessageSocket, (char *)&leftFrameBuf[currentFramePointer], bytesLeft, 0);
-						if (iResultMessage > 0) {
-							printf("Bytes received left frame: %d\n", iResultMessage);
-
-						}
-						else if (iResultMessage == 0) {
-							printf("Connection closed\n");
-							int bytesLeft = frameBufLength;
-							int currentFramePointer = 0;
-							break;
-						}
-						else {
-							printf("recv failed with error: %d\n", WSAGetLastError());
-						}
-
-						currentFramePointer += iResultMessage;
-						bytesLeft -= iResultMessage;
-
-					}
-
-					left->imageData = (char *)&leftFrameBuf[0];
-					printf("Whole frame gathered\n");
-					bmpLeftNative = gcnew Bitmap(width, height, left->widthStep,
-						System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(left->imageData));
-
-					//create grayscale color pallet for image
-					_palette = bmpLeftNative->Palette;
-
-					for (int i = 0; i < 256; i++)
-					{
-						Color ^ b = gcnew Color();
-						_palette->Entries[i] = b->FromArgb(i, i, i);
-					}
-
-					bmpLeftNative->Palette = _palette;
-
-					//resize the image to be 720x540
-					bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
-					//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
-
-				}
-				//receive right frame
-				else if (captureLOrR == 1) {
-
-					while (bytesLeft > 0) {
-						iResultMessage = recv(MessageSocket, (char *)&rightFrameBuf[currentFramePointer], bytesLeft, 0);
-						if (iResultMessage > 0) {
-							printf("Bytes received left frame: %d\n", iResultMessage);
-
-						}
-						else if (iResultMessage == 0) {
-							printf("Connection closed\n");
-							int bytesLeft = frameBufLength;
-							int currentFramePointer = 0;
-							break;
-						}
-						else {
-							printf("recv failed with error: %d\n", WSAGetLastError());
-						}
-
-						currentFramePointer += iResultMessage;
-						bytesLeft -= iResultMessage;
-					}
-
-					right->imageData = (char *)&rightFrameBuf[0];
-					printf("Whole frame gathered\n");
-					bmpRightNative = gcnew Bitmap(width, height, right->widthStep,
-						System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(right->imageData));
-
-					//create grayscale color pallet for image
-					_palette = bmpRightNative->Palette;
-
-					for (int i = 0; i < 256; i++)
-					{
-						Color ^ b = gcnew Color();
-						_palette->Entries[i] = b->FromArgb(i, i, i);
-					}
-
-					bmpRightNative->Palette = _palette;
-
-					//resize the image to be 720x540
-					bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
-					//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
-				}
-				//put frames in Main Form
-				worker->ReportProgress(1);*/
 
 			//Write phase
 			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
@@ -525,10 +453,41 @@ namespace Learn {
 		pb1->Refresh();
 	}
 
+	private: System::Void bgwGamepad_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
+		GamePad * gp = new GamePad(1);
+		while (true) {
+			gp->Update();
+			isConnected.store(gp->Connected(), std::memory_order_relaxed);
+
+			for (int i = 0; i < 14; i++) {
+				buttonsDown[i].store(gp->GetButtonDown(i), std::memory_order_relaxed);
+			}
+
+			for (int i = 0; i < 14; i++) {
+				buttonsPressed[i].store(gp->GetButtonPressed(i), std::memory_order_relaxed);
+			}
+
+			stickAndTriggers[0].store(gp->LeftStick_X(), std::memory_order_relaxed);
+			stickAndTriggers[1].store(gp->LeftStick_Y(), std::memory_order_relaxed);
+			stickAndTriggers[2].store(gp->RightStick_X(), std::memory_order_relaxed);
+			stickAndTriggers[3].store(gp->RightStick_Y(), std::memory_order_relaxed);
+			stickAndTriggers[4].store(gp->LeftTrigger(), std::memory_order_relaxed);
+			stickAndTriggers[5].store(gp->RightTrigger(), std::memory_order_relaxed);
+
+			gp->RefreshState();
+		}
+
+
+	}
+
+	private: System::Void bgwRenderLoop_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
+		while(true){ re->RenderFrame(); }
+	}
+
 	private: System::Void startNewConnectionToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
 		//create client
 		client = new ClientSocket("2000", IP, "Client");
-		
+
 		//connect the servers
 		client->connectToServer();
 
@@ -603,6 +562,37 @@ namespace Learn {
 		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, 10);
 	}
 
+			 //Reads in data from client using a while loop to ensure that len bytes have been red
+			 //args:	client: client to read on
+			 //			buf: buffer to read into
+			 //			len: bytes to read
+			 //			flags: flags for the read
+	private: int recvWithLoopCheck(ClientSocket * client, char * buf, int len, int flags) {
+		int bytesLeft = len;
+		int currentFramePointer = 0;
+
+
+		int n = 0;
+		while (bytesLeft > 0) {
+			n = client->readCli(&buf[currentFramePointer], bytesLeft, flags);
+			if (n == 0) {
+				printf("Connection closed\n");
+				break;
+			}
+			else if (n < 0) {
+				printf("recv failed with error: %d\n", WSAGetLastError());
+				break;
+			}
+
+			currentFramePointer += n;
+			bytesLeft -= n;
+		}
+
+		//return bytes red before loop ended
+		return currentFramePointer;
+
+	}
 
 	};
+
 }
