@@ -67,12 +67,35 @@ RenderEngine::RenderEngine(HWND hWnd)
 
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
-	viewport.Width = 400;
-	viewport.Height = 400;
+	viewport.Width = width;
+	viewport.Height = height;
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
 
 	devcon->RSSetViewports(1, &viewport);
+
+	//Create the buffer to send to the cbuffer in effect file
+	D3D11_BUFFER_DESC cbbd;
+	ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+
+	cbbd.Usage = D3D11_USAGE_DEFAULT;
+	cbbd.ByteWidth = sizeof(cbPerObject);
+	cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbbd.CPUAccessFlags = 0;
+	cbbd.MiscFlags = 0;
+
+	dev->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
+
+	//Camera information
+	camPosition = DirectX::XMVectorSet(0.0f, 3.0f, -8.0f, 0.0f);
+	camTarget = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	camUp = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+	//Set the View matrix
+	camView = DirectX::XMMatrixLookAtLH(camPosition, camTarget, camUp);
+
+	//Set the Projection matrix
+	camProjection = DirectX::XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)width / height, 1.0f, 1000.0f);
 
 	InitPipeline();
 	InitGraphics();
@@ -96,8 +119,23 @@ void RenderEngine::RenderFrame(void)
 	//Refresh the Depth/Stencil view
 	devcon->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
+	//Set the World/View/Projection matrix, then send it to constant buffer in effect file
+	
+	WVP = cube1World * camView * camProjection;
+	cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);
+	devcon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+	devcon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
 	// draw the vertex buffer to the back buffer
-	devcon->DrawIndexed(6, 0, 0);
+	devcon->DrawIndexed(36, 0, 0);
+
+	WVP = cube2World * camView * camProjection;
+	cbPerObj.WVP = XMMatrixTranspose(WVP);
+	devcon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+	devcon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+	//Draw the second cube
+	devcon->DrawIndexed(36, 0, 0);
 
 	// switch the back buffer and the front buffer
 	swapchain->Present(0, 0);
@@ -108,23 +146,49 @@ void RenderEngine::InitGraphics(void)
 	// create a triangle using the VERTEX struct
 	VERTEX OurVertices[] =
 	{
-		{-0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 1.0f},
-		{-0.5f,  0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 1.0f},
-		{0.5f,  0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f},
-		{0.5f, -0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 1.0f} 
+		{-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f},
+		{-1.0f, +1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f},
+		{+1.0f, +1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f},
+		{+1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 1.0f},
+		{-1.0f, -1.0f, +1.0f, 0.0f, 1.0f, 1.0f, 1.0f},
+		{-1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{+1.0f, +1.0f, +1.0f, 1.0f, 0.0f, 1.0f, 1.0f},
+		{+1.0f, -1.0f, +1.0f, 1.0f, 0.0f, 0.0f, 1.0f}
 	};
 
 	//create index buffer
 	DWORD indices[] = {
+		// front face
 		0, 1, 2,
 		0, 2, 3,
+
+		// back face
+		4, 6, 5,
+		4, 7, 6,
+
+		// left face
+		4, 5, 1,
+		4, 1, 0,
+
+		// right face
+		3, 2, 6,
+		3, 6, 7,
+
+		// top face
+		1, 5, 6,
+		1, 6, 2,
+
+		// bottom face
+		4, 0, 3,
+		4, 3, 7
 	};
 
+	//Index buffer setup
 	D3D11_BUFFER_DESC indexBufferDesc;
 	ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
 
 	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	indexBufferDesc.ByteWidth = sizeof(DWORD) * 2 * 3;
+	indexBufferDesc.ByteWidth = sizeof(DWORD) * 12 * 3;
 	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	indexBufferDesc.CPUAccessFlags = 0;
 	indexBufferDesc.MiscFlags = 0;
@@ -137,19 +201,19 @@ void RenderEngine::InitGraphics(void)
 	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
 
-	// create the vertex buffer
+	//Vertex buffer setup
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(bd));
 
 	bd.Usage = D3D11_USAGE_DYNAMIC;                // write access access by CPU and GPU
-	bd.ByteWidth = sizeof(VERTEX) * 4;             // size is the VERTEX struct * 3
+	bd.ByteWidth = sizeof(VERTEX) * 8;             // size is the VERTEX struct * 3
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;       // use as a vertex buffer
 	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;    // allow CPU to write in buffer
 
 	dev->CreateBuffer(&bd, NULL, &pVBuffer);       // create the buffer
 
 
-												   // copy the vertices into the buffer
+	// copy the vertices into the buffer
 	D3D11_MAPPED_SUBRESOURCE ms;
 	devcon->Map(pVBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);    // map the buffer
 	memcpy(ms.pData, OurVertices, sizeof(OurVertices));                 // copy the data
@@ -182,6 +246,35 @@ void RenderEngine::InitPipeline(void)
 	devcon->IASetInputLayout(pLayout);
 }
 
+void RenderEngine::updateScene(void)
+{
+	//Keep the cubes rotating
+	rotation += .0005f;
+	if (rotation > 6.28f)
+		rotation = 0.0f;
+
+	//Reset cube1World
+	cube1World = DirectX::XMMatrixIdentity();
+
+	//Define cube1's world space matrix
+	DirectX::XMVECTOR rotaxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	Rotation = DirectX::XMMatrixRotationAxis(rotaxis, rotation);
+	Translation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f);
+
+	//Set cube1's world space using the transformations
+	cube1World = Translation * Rotation;
+
+	//Reset cube2World
+	cube2World = DirectX::XMMatrixIdentity();
+
+	//Define cube2's world space matrix
+	Rotation = DirectX::XMMatrixRotationAxis(rotaxis, -rotation);
+	Scale = DirectX::XMMatrixScaling(1.3f, 1.3f, 1.3f);
+
+	//Set cube2's world space matrix
+	cube2World = Rotation * Scale;
+}
+
 RenderEngine::~RenderEngine()
 {
 	// close and release all existing COM objects
@@ -196,5 +289,6 @@ RenderEngine::~RenderEngine()
 	devcon->Release();
 	depthStencilView->Release();
 	depthStencilBuffer->Release();
+	cbPerObjectBuffer->Release();
 }
 

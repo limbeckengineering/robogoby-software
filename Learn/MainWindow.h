@@ -481,7 +481,7 @@ namespace Learn {
 	}
 
 	private: System::Void bgwRenderLoop_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
-		while(true){ re->RenderFrame(); }
+		while (true) { re->updateScene(); re->RenderFrame(); }
 	}
 
 	private: System::Void startNewConnectionToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
