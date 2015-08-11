@@ -33,10 +33,10 @@ uint8_t currentGeneralSendBuf[10];
 uint8_t lastGeneralSendBuf[10];
 
 //buffer for the left frame of the camera
-std::vector<uint8_t> leftFrameBuf(307200);
+std::vector<uint8_t> leftFrameBuf(76800);
 
 //buffer for the right frame of the camera
-std::vector<uint8_t> rightFrameBuf(307200);
+std::vector<uint8_t> rightFrameBuf(76800);
 
 //width/height for DUO camera on other side of server
 uint16_t width = 320, height = 240;
@@ -49,6 +49,9 @@ int iResult;
 
 //Indicates which camera to on the duo to capture from: 0 = left, 1 = right, 2 = both and overlay
 uint8_t captureLOrR = 0;
+
+//tells whether the server thread should refrain from resizing its current image because the main thread is using the rezised image to put an image in the UI
+std::atomic<bool> frameBeingPut(false);
 
 //gamepad
 //is controller connected
@@ -85,8 +88,8 @@ namespace Learn {
 		{
 			//initialize GUI
 			InitializeComponent();
-			re = new RenderEngine((HWND)subRenderWindow->Handle.ToPointer());
 			bgwGamepad->RunWorkerAsync();
+			re = new RenderEngine((HWND)subRenderWindow->Handle.ToPointer());
 			bgwRenderLoop->RunWorkerAsync();
 
 		}
@@ -346,11 +349,10 @@ namespace Learn {
 		do {
 
 			//Read phase 
-
 			//recieve left frame or...
 			if (captureLOrR == 0) {
 
-				iResult = recvWithLoopCheck(client, (char *)&leftFrameBuf, frameSize, 0);
+				iResult = client->readCli((char *)&leftFrameBuf, frameSize, 0, true);
 
 				if (iResult < 0) break;
 
@@ -376,6 +378,12 @@ namespace Learn {
 
 				bmpLeftNative->Palette = _palette;
 
+				while (frameBeingPut.load(std::memory_order_relaxed) == true) {
+					//waste cycles
+					//check for data race over Resized bitmap
+				}
+				printf("going");
+
 				//resize the image to be 720x540
 				bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
 				//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
@@ -384,7 +392,7 @@ namespace Learn {
 			//receive right frame
 			else if (captureLOrR == 1) {
 
-				iResult = recvWithLoopCheck(client, (char *)&rightFrameBuf, frameSize, 0);
+				iResult = client->readCli((char *)&rightFrameBuf, frameSize, 0, true);
 
 				if (iResult < 0) break;
 
@@ -408,15 +416,20 @@ namespace Learn {
 				}
 
 				bmpRightNative->Palette = _palette;
+				printf("checking\n");
+				while (frameBeingPut.load(std::memory_order_relaxed) == true) {
+					//waste cycles
+					//check for data race over Resized bitmap
+				}
+				printf("going\n");
 
 				//resize the image to be 720x540
 				bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
-				//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
 			}
 
 			worker->ReportProgress(1);
 
-			iResult = recvWithLoopCheck(client, (char *)&generalRecvBuf, 10, 0);
+			iResult = client->readCli((char *)&generalRecvBuf, 10, 0, true);
 
 			if (iResult < 0) break;
 
@@ -424,7 +437,7 @@ namespace Learn {
 			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
 			populateSendBuf();
 			if (lastGeneralSendBuf != currentGeneralSendBuf) {
-				iResult = client->writeCli((char *)&currentGeneralSendBuf, 10, 0);
+				iResult = client->writeCli((char *)&currentGeneralSendBuf, 10, 0, true);
 				currentToLastBuf();
 				if (iResult < 0) break;
 			}
@@ -443,6 +456,8 @@ namespace Learn {
 		delete client;
 	}
 	private: System::Void bgwClient_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
+		printf("stop\n");
+		frameBeingPut.store(true, std::memory_order_relaxed);
 		if (captureLOrR == 0) {
 			pb1->Image = dynamic_cast<Image^>(bmpLeftResize);
 
@@ -450,7 +465,10 @@ namespace Learn {
 		else if (captureLOrR == 1) {
 			pb1->Image = dynamic_cast<Image^>(bmpRightResize);
 		}
+		frameBeingPut.store(false, std::memory_order_relaxed);
+		printf("go\n");
 		pb1->Refresh();
+
 	}
 
 	private: System::Void bgwGamepad_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
@@ -458,6 +476,7 @@ namespace Learn {
 		while (true) {
 			gp->Update();
 			isConnected.store(gp->Connected(), std::memory_order_relaxed);
+
 
 			for (int i = 0; i < 14; i++) {
 				buttonsDown[i].store(gp->GetButtonDown(i), std::memory_order_relaxed);
@@ -494,13 +513,12 @@ namespace Learn {
 		//set the length of the buffers for each frame we are going to read in
 		frameSize = width*height;
 
-		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
 		//Initial send phase for initial settings
-
 		populateSendBuf();
 		currentToLastBuf();
 
-		iResult = client->writeCli((char *)&currentGeneralSendBuf, 10, 0);
+		iResult = client->writeCli((char *)&currentGeneralSendBuf, 10, 0, false);
+
 		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
 
 		bgwClient->RunWorkerAsync();
@@ -560,37 +578,6 @@ namespace Learn {
 			 //sets the lastGeneralSendBuf to the currentGeneralSendBuf
 	private: System::Void currentToLastBuf() {
 		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, 10);
-	}
-
-			 //Reads in data from client using a while loop to ensure that len bytes have been red
-			 //args:	client: client to read on
-			 //			buf: buffer to read into
-			 //			len: bytes to read
-			 //			flags: flags for the read
-	private: int recvWithLoopCheck(ClientSocket * client, char * buf, int len, int flags) {
-		int bytesLeft = len;
-		int currentFramePointer = 0;
-
-
-		int n = 0;
-		while (bytesLeft > 0) {
-			n = client->readCli(&buf[currentFramePointer], bytesLeft, flags);
-			if (n == 0) {
-				printf("Connection closed\n");
-				break;
-			}
-			else if (n < 0) {
-				printf("recv failed with error: %d\n", WSAGetLastError());
-				break;
-			}
-
-			currentFramePointer += n;
-			bytesLeft -= n;
-		}
-
-		//return bytes red before loop ended
-		return currentFramePointer;
-
 	}
 
 	};

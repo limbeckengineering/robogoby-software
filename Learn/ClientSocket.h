@@ -19,8 +19,8 @@ class ClientSocket
 public:
 	ClientSocket(std::string portno, std::string IP, std::string name);
 	void connectToServer();
-	int writeCli(const char * buf, int len, int flags);
-	int readCli(char * buf, int len, int flags);
+	int writeCli(const char * buf, int len, int flags, bool loopCheck);
+	int readCli(char * buf, int len, int flags, bool loopCheck);
 	virtual ~ClientSocket();
 
 private: 

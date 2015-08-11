@@ -60,18 +60,57 @@ void ClientSocket::connectToServer()
 	printf("Client named %s connected to server\n", name.c_str());
 }
 
-int ClientSocket::writeCli(const char * buf, int len, int flags)
+int ClientSocket::writeCli(const char * buf, int len, int flags, bool loopCheck)
 {
-	iResult = send(ConnectSocket, buf, len, flags);
-	printf("%s wrote %u bytes\n", name.c_str(), iResult);
-	return iResult;
+	if (loopCheck) {
+		int index = 0;
+		int bytesLeft = len;
+
+		while (bytesLeft > 0) {
+
+			iResult = send(ConnectSocket, &buf[index], bytesLeft, flags);
+			if (iResult < 0) { printf("%s failed to write\n", name.c_str());}
+			printf("%s wrote %u bytes\n", name.c_str(), iResult);
+
+			index += iResult;
+			bytesLeft -= iResult;
+		}
+
+		return index;
+
+	}
+	else {
+		iResult = send(ConnectSocket, buf, len, flags);
+		if (iResult < 0) { printf("%s failed to write\n", name.c_str());}
+		printf("%s wrote %u bytes\n", name.c_str(), iResult);
+		return iResult;
+	}
 }
 
-int ClientSocket::readCli(char * buf, int len, int flags)
+int ClientSocket::readCli(char * buf, int len, int flags, bool loopCheck)
 {
-	iResult = recv(ConnectSocket, buf, len, flags);
-	printf("%s red in %u bytes\n", name.c_str(), iResult);
-	return iResult;
+	if (loopCheck) {
+		int index = 0;
+		int bytesLeft = len;
+
+		while (bytesLeft > 0) {
+			iResult = recv(ConnectSocket, &buf[index], bytesLeft, flags);
+			if (iResult < 0) { printf("%s failed to read\n", name.c_str());}
+			printf("%s red in %u bytes\n", name.c_str(), iResult);
+
+			index += iResult;
+			bytesLeft -= iResult;
+
+		}
+
+		return index;
+	}
+	else {
+		iResult = recv(ConnectSocket, buf, len, flags);
+		if (iResult < 0) { printf("%s failed to read\n", name.c_str());}
+		printf("%s red in %u bytes\n", name.c_str(), iResult);
+		return iResult;
+	}
 }
 
 
