@@ -33,10 +33,10 @@ uint8_t currentGeneralSendBuf[10];
 uint8_t lastGeneralSendBuf[10];
 
 //buffer for the left frame of the camera
-std::vector<uint8_t> leftFrameBuf(76800);
+std::vector<char> leftFrameBuf(76800);
 
 //buffer for the right frame of the camera
-std::vector<uint8_t> rightFrameBuf(76800);
+std::vector<char> rightFrameBuf(76800);
 
 //width/height for DUO camera on other side of server
 uint16_t width = 320, height = 240;
@@ -352,7 +352,7 @@ namespace Learn {
 			//recieve left frame or...
 			if (captureLOrR == 0) {
 
-				iResult = client->readCli((char *)&leftFrameBuf, frameSize, 0, true);
+				iResult = client->readCli(&leftFrameBuf[0], frameSize, 0, true);
 
 				if (iResult < 0) break;
 
@@ -365,7 +365,7 @@ namespace Learn {
 				stride *= 4;             // bytes per row
 
 				bmpLeftNative = gcnew Bitmap(width, height, stride,
-					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr((char *)&leftFrameBuf[0]));
+					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(&leftFrameBuf[0]));
 
 				//create grayscale color pallet for image
 				_palette = bmpLeftNative->Palette;
@@ -392,7 +392,7 @@ namespace Learn {
 			//receive right frame
 			else if (captureLOrR == 1) {
 
-				iResult = client->readCli((char *)&rightFrameBuf, frameSize, 0, true);
+				iResult = client->readCli(&rightFrameBuf[0], frameSize, 0, true);
 
 				if (iResult < 0) break;
 
@@ -404,7 +404,7 @@ namespace Learn {
 
 				printf("Whole frame gathered\n");
 				bmpRightNative = gcnew Bitmap(width, height, stride,
-					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr((char *)&rightFrameBuf[0]));
+					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(&rightFrameBuf[0]));
 
 				//create grayscale color pallet for image
 				_palette = bmpRightNative->Palette;
@@ -429,7 +429,7 @@ namespace Learn {
 
 			worker->ReportProgress(1);
 
-			iResult = client->readCli((char *)&generalRecvBuf, 10, 0, true);
+			iResult = client->readCli((char *)generalRecvBuf, 10, 0, false);
 
 			if (iResult < 0) break;
 
@@ -437,7 +437,7 @@ namespace Learn {
 			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
 			populateSendBuf();
 			if (lastGeneralSendBuf != currentGeneralSendBuf) {
-				iResult = client->writeCli((char *)&currentGeneralSendBuf, 10, 0, true);
+				iResult = client->writeCli((char *)currentGeneralSendBuf, 10, 0, true);
 				currentToLastBuf();
 				if (iResult < 0) break;
 			}
@@ -500,7 +500,7 @@ namespace Learn {
 	}
 
 	private: System::Void bgwRenderLoop_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
-		while (true) { re->updateScene(); re->RenderFrame(); }
+		while (true) {re->RenderFrame(); }
 	}
 
 	private: System::Void startNewConnectionToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
@@ -517,7 +517,7 @@ namespace Learn {
 		populateSendBuf();
 		currentToLastBuf();
 
-		iResult = client->writeCli((char *)&currentGeneralSendBuf, 10, 0, false);
+		iResult = client->writeCli((char *)currentGeneralSendBuf, 10, 0, false);
 
 		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
 
