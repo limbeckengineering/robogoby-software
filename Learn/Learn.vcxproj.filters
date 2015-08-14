@@ -69,12 +69,13 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders.shader">
-      <Filter>Source Files</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="Shaders.hlsl">
+    <FxCompile Include="Shaders.fx">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="ShadersPS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="ShadersVS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

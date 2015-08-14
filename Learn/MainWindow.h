@@ -311,7 +311,7 @@ namespace Learn {
 			// 
 			this->subRenderWindow->Location = System::Drawing::Point(739, 28);
 			this->subRenderWindow->Name = L"subRenderWindow";
-			this->subRenderWindow->Size = System::Drawing::Size(400, 400);
+			this->subRenderWindow->Size = System::Drawing::Size(640, 480);
 			this->subRenderWindow->TabIndex = 10;
 			this->subRenderWindow->TabStop = false;
 			// 

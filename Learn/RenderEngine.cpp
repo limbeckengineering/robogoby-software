@@ -89,7 +89,7 @@ void RenderEngine::InitPipeline(void)
 {
 	// Compile the vertex shader
 	ID3DBlob* pVSBlob = nullptr;
-	CompileShaderFromFile(L"Tutorial06.hlsl", "VS", "vs_4_0", &pVSBlob);
+	CompileShaderFromFile(L"Shaders.fx", "VS", "vs_5_0", &pVSBlob);
 
 	// Create the vertex shader
 	dev->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &pVS);
@@ -113,7 +113,7 @@ void RenderEngine::InitPipeline(void)
 
 	// Compile the pixel shader
 	ID3DBlob* pPSBlob = nullptr;
-	CompileShaderFromFile(L"Tutorial06.hlsl", "PS", "ps_4_0", &pPSBlob);
+	CompileShaderFromFile(L"Shaders.fx", "PS", "ps_5_0", &pPSBlob);
 
 	// Create the pixel shader
 	dev->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &pPS);
@@ -121,7 +121,7 @@ void RenderEngine::InitPipeline(void)
 
 	// Compile the pixel shader
 	pPSBlob = nullptr;
-	CompileShaderFromFile(L"Tutorial06.hlsl", "PSSolid", "ps_4_0", &pPSBlob);
+	CompileShaderFromFile(L"Shaders.fx", "PSSolid", "ps_5_0", &pPSBlob);
 
 	// Create the pixel shader
 	dev->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &pPSSolid);
@@ -201,6 +201,7 @@ void RenderEngine::InitGraphics(void)
 		22,20,21,
 		23,20,22
 	};
+
 	bd.Usage = D3D11_USAGE_DEFAULT;
 	bd.ByteWidth = sizeof(DWORD) * 36;        // 36 vertices needed for 12 triangles in a triangle list
 	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -224,6 +225,10 @@ void RenderEngine::InitGraphics(void)
 	// Initialize the world matrices
 	World = XMMatrixIdentity();
 
+	XMVECTOR camPosition;
+	XMVECTOR camTarget;
+	XMVECTOR camUp;
+
 	// Initialize the view matrix
 	camPosition = XMVectorSet(0.0f, 4.0f, -10.0f, 0.0f);
 	camTarget = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -240,33 +245,25 @@ void RenderEngine::RenderFrame(void)
 {
 	// Update our time
 	static float t = 0.0f;
-	static ULONGLONG timeStart = 0;
-	ULONGLONG timeCur = GetTickCount64();
-	if (timeStart == 0)
-		timeStart = timeCur;
-	t = (timeCur - timeStart) / 1000.0f;
+	
+	t += .004f;
 
+	if (t > 6.28f) {
+		t = 0;
+	}
 
 	// Rotate cube around the origin
 	World = XMMatrixRotationY(t);
 
 	// Setup our lighting parameters
-	XMFLOAT4 vLightDirs[2] =
-	{
-		XMFLOAT4(-0.577f, 0.577f, -0.577f, 1.0f),
-		XMFLOAT4(0.0f, 0.0f, -1.0f, 1.0f),
-	};
-	XMFLOAT4 vLightColors[2] =
-	{
-		XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f),
-		XMFLOAT4(0.5f, 0.0f, 0.0f, 1.0f)
-	};
+	XMFLOAT4 vLightDirs(0.0f, 0.0f, -1.0f, 1.0f);
+	XMFLOAT4 vLightColors(0.5f, 0.0f, 0.0f, 1.0f);
 
 	// Rotate the second light around the origin
 	XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);
-	XMVECTOR vLightDir = XMLoadFloat4(&vLightDirs[1]);
+	XMVECTOR vLightDir = XMLoadFloat4(&vLightDirs);
 	vLightDir = XMVector3Transform(vLightDir, mRotate);
-	XMStoreFloat4(&vLightDirs[1], vLightDir);
+	XMStoreFloat4(&vLightDirs, vLightDir);
 
 	//
 	// Clear the back buffer
@@ -285,10 +282,8 @@ void RenderEngine::RenderFrame(void)
 	cb1.mWorld = XMMatrixTranspose(World);
 	cb1.mView = XMMatrixTranspose(View);
 	cb1.mProjection = XMMatrixTranspose(Projection);
-	cb1.vLightDir[0] = vLightDirs[0];
-	cb1.vLightDir[1] = vLightDirs[1];
-	cb1.vLightColor[0] = vLightColors[0];
-	cb1.vLightColor[1] = vLightColors[1];
+	cb1.vLightDir = vLightDirs;
+	cb1.vLightColor = vLightColors;
 	cb1.vOutputColor = XMFLOAT4(0, 0, 0, 0);
 	devcon->UpdateSubresource(pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
@@ -300,24 +295,22 @@ void RenderEngine::RenderFrame(void)
 	devcon->PSSetShader(pPS, nullptr, 0);
 	devcon->PSSetConstantBuffers(0, 1, &pConstantBuffer);
 	devcon->DrawIndexed(36, 0, 0);
-	
+
 	//
 	// Render each light
 	//
-	for (int m = 0; m < 2; m++)
-	{
-		XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&vLightDirs[m]));
-		XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
-		mLight = mLightScale * mLight;
+	XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&vLightDirs));
+	XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
+	mLight = mLightScale * mLight;
 
-		// Update the world variable to reflect the current light
-		cb1.mWorld = XMMatrixTranspose(mLight);
-		cb1.vOutputColor = vLightColors[m];
-		devcon->UpdateSubresource(pConstantBuffer, 0, nullptr, &cb1, 0, 0);
+	// Update the world variable to reflect the current light
+	cb1.mWorld = XMMatrixTranspose(mLight);
+	cb1.vOutputColor = vLightColors;
+	devcon->UpdateSubresource(pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
-		devcon->PSSetShader(pPSSolid, nullptr, 0);
-		devcon->DrawIndexed(36, 0, 0);
-	}
+	devcon->PSSetShader(pPSSolid, nullptr, 0);
+	devcon->PSSetConstantBuffers(0, 1, &pConstantBuffer);
+	devcon->DrawIndexed(36, 0, 0);
 
 	//
 	// Present our back buffer to our front buffer
