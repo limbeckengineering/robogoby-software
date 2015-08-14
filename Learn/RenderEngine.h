@@ -1,8 +1,8 @@
 #pragma once
 
-#include <d3d11.h>
+#include <d3d11_1.h>
 #include <d3dcompiler.h>
-#include <DirectXMath.h>
+#include <directxmath.h>
 #include <directxcolors.h>
 
 // include the Direct3D Library file
@@ -24,30 +24,35 @@ private:
 	void InitGraphics(void);    // creates the shape to render
 	void InitPipeline(void);    // loads and prepares the shaders
 
-	int width = 640;
-	int height = 480;
+	int width = 400;
+	int height = 400;
 
-	IDXGISwapChain *swapchain;					// the pointer to the swap chain interface
-	ID3D11Device *dev;							// the pointer to our Direct3D device interface
-	ID3D11DeviceContext *devcon;				// the pointer to our Direct3D device context
-	ID3D11RenderTargetView *backbuffer;			// pointer to the back buffer
-	ID3D11InputLayout *pVertexLayout;           // the pointer to the input layout
-	ID3D11VertexShader *pVS;					// the pointer to the vertex shader
-	ID3D11PixelShader *pPS;						// the pointer to the pixel shader
-	ID3D11PixelShader *pPSSolid;
-	ID3D11Buffer *pVBuffer;						// the pointer to the cube vertex buffer
-	ID3D11Buffer *pIBuffer;						//pointer to the Index Buffer
-	ID3D11Buffer *pConstantBuffer;		
-	ID3D11DepthStencilView* depthStencilView;
-	ID3D11Texture2D* depthStencilBuffer;
+	D3D_DRIVER_TYPE         g_driverType = D3D_DRIVER_TYPE_NULL;
+	D3D_FEATURE_LEVEL       g_featureLevel = D3D_FEATURE_LEVEL_11_0;
+	ID3D11Device*           g_pd3dDevice = nullptr;
+	ID3D11Device1*          g_pd3dDevice1 = nullptr;
+	ID3D11DeviceContext*    g_pImmediateContext = nullptr;
+	ID3D11DeviceContext1*   g_pImmediateContext1 = nullptr;
+	IDXGISwapChain*         g_pSwapChain = nullptr;
+	IDXGISwapChain1*        g_pSwapChain1 = nullptr;
+	ID3D11RenderTargetView* g_pRenderTargetView = nullptr;
+	ID3D11Texture2D*        g_pDepthStencil = nullptr;
+	ID3D11DepthStencilView* g_pDepthStencilView = nullptr;
+	ID3D11VertexShader*     g_pVertexShader = nullptr;
+	ID3D11PixelShader*      g_pPixelShader = nullptr;
+	ID3D11PixelShader*      g_pPixelShaderSolid = nullptr;
+	ID3D11InputLayout*      g_pVertexLayout = nullptr;
+	ID3D11Buffer*           g_pVertexBuffer = nullptr;
+	ID3D11Buffer*           g_pIndexBuffer = nullptr;
+	ID3D11Buffer*           g_pConstantBuffer = nullptr;
+	XMMATRIX                g_World;
+	XMMATRIX                g_View;
+	XMMATRIX                g_Projection;
 
-	//camera
-	XMMATRIX World;
-	XMMATRIX View;
-	XMMATRIX Projection;
-
-	// a struct to define a single vertex
-	struct VERTEX
+	//--------------------------------------------------------------------------------------
+	// Structures
+	//--------------------------------------------------------------------------------------
+	struct SimpleVertex
 	{
 		XMFLOAT3 Pos;
 		XMFLOAT3 Normal;
@@ -63,6 +68,5 @@ private:
 		XMFLOAT4 vLightColor;
 		XMFLOAT4 vOutputColor;
 	};
-
 };
 

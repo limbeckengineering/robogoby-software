@@ -1,4 +1,6 @@
 //--------------------------------------------------------------------------------------
+// File: Tutorial06.fx
+//
 // Copyright (c) Microsoft Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
@@ -57,7 +59,6 @@ float4 PS(PS_INPUT input) : SV_Target
 	
 	finalColor.a = 1;
 	return finalColor;
-
 }
 
 

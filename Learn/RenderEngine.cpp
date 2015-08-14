@@ -2,82 +2,165 @@
 
 RenderEngine::RenderEngine(HWND hWnd)
 {
-	//create Swapchain and dev and devcon
-	//also create stencil/depth buffer and set rendertaget to back buffer
-	// create a struct to hold information about the swap chain
-	DXGI_SWAP_CHAIN_DESC scd;
+	HRESULT hr = S_OK;
 
-	// clear out the struct for use
-	ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));
+	UINT createDeviceFlags = 0;
+#ifdef _DEBUG
+	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 
-	// fill the swap chain description struct
-	scd.BufferCount = 1;                                    // one back buffer
-	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;     // use 32-bit color
-	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;      // how swap chain is to be used
-	scd.OutputWindow = hWnd;                                // the window to be used
-	scd.SampleDesc.Count = 4;                               // how many multisamples
-	scd.Windowed = TRUE;                                    // windowed/full-screen mode
-
-	// create a device, device context and swap chain using the information in the scd struct
-	D3D11CreateDeviceAndSwapChain(NULL,
+	D3D_DRIVER_TYPE driverTypes[] =
+	{
 		D3D_DRIVER_TYPE_HARDWARE,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		D3D11_SDK_VERSION,
-		&scd,
-		&swapchain,
-		&dev,
-		NULL,
-		&devcon);
+		D3D_DRIVER_TYPE_WARP,
+		D3D_DRIVER_TYPE_REFERENCE,
+	};
+	UINT numDriverTypes = ARRAYSIZE(driverTypes);
 
-	// get the address of the back buffer
-	ID3D11Texture2D *pBackBuffer;
-	swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+	D3D_FEATURE_LEVEL featureLevels[] =
+	{
+		D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0,
+		D3D_FEATURE_LEVEL_10_1,
+		D3D_FEATURE_LEVEL_10_0,
+	};
+	UINT numFeatureLevels = ARRAYSIZE(featureLevels);
 
-	// use the back buffer address to create the render target
-	dev->CreateRenderTargetView(pBackBuffer, NULL, &backbuffer);
+	for (UINT driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++)
+	{
+		g_driverType = driverTypes[driverTypeIndex];
+		hr = D3D11CreateDevice(nullptr, g_driverType, nullptr, createDeviceFlags, featureLevels, numFeatureLevels,
+			D3D11_SDK_VERSION, &g_pd3dDevice, &g_featureLevel, &g_pImmediateContext);
+
+		if (hr == E_INVALIDARG)
+		{
+			// DirectX 11.0 platforms will not recognize D3D_FEATURE_LEVEL_11_1 so we need to retry without it
+			hr = D3D11CreateDevice(nullptr, g_driverType, nullptr, createDeviceFlags, &featureLevels[1], numFeatureLevels - 1,
+				D3D11_SDK_VERSION, &g_pd3dDevice, &g_featureLevel, &g_pImmediateContext);
+		}
+
+		if (SUCCEEDED(hr))
+			break;
+	}
+
+
+
+	// Obtain DXGI factory from device (since we used nullptr for pAdapter above)
+	IDXGIFactory1* dxgiFactory = nullptr;
+	{
+		IDXGIDevice* dxgiDevice = nullptr;
+		hr = g_pd3dDevice->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dxgiDevice));
+		if (SUCCEEDED(hr))
+		{
+			IDXGIAdapter* adapter = nullptr;
+			hr = dxgiDevice->GetAdapter(&adapter);
+			if (SUCCEEDED(hr))
+			{
+				hr = adapter->GetParent(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&dxgiFactory));
+				adapter->Release();
+			}
+			dxgiDevice->Release();
+		}
+	}
+
+
+	// Create swap chain
+	IDXGIFactory2* dxgiFactory2 = nullptr;
+	hr = dxgiFactory->QueryInterface(__uuidof(IDXGIFactory2), reinterpret_cast<void**>(&dxgiFactory2));
+	if (dxgiFactory2)
+	{
+		// DirectX 11.1 or later
+		hr = g_pd3dDevice->QueryInterface(__uuidof(ID3D11Device1), reinterpret_cast<void**>(&g_pd3dDevice1));
+		if (SUCCEEDED(hr))
+		{
+			(void)g_pImmediateContext->QueryInterface(__uuidof(ID3D11DeviceContext1), reinterpret_cast<void**>(&g_pImmediateContext1));
+		}
+
+		DXGI_SWAP_CHAIN_DESC1 sd;
+		ZeroMemory(&sd, sizeof(sd));
+		sd.Width = width;
+		sd.Height = height;
+		sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		sd.SampleDesc.Count = 1;
+		sd.SampleDesc.Quality = 0;
+		sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		sd.BufferCount = 1;
+
+		hr = dxgiFactory2->CreateSwapChainForHwnd(g_pd3dDevice, hWnd, &sd, nullptr, nullptr, &g_pSwapChain1);
+		if (SUCCEEDED(hr))
+		{
+			hr = g_pSwapChain1->QueryInterface(__uuidof(IDXGISwapChain), reinterpret_cast<void**>(&g_pSwapChain));
+		}
+
+		dxgiFactory2->Release();
+	}
+	else
+	{
+		// DirectX 11.0 systems
+		DXGI_SWAP_CHAIN_DESC sd;
+		ZeroMemory(&sd, sizeof(sd));
+		sd.BufferCount = 1;
+		sd.BufferDesc.Width = width;
+		sd.BufferDesc.Height = height;
+		sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		sd.BufferDesc.RefreshRate.Numerator = 60;
+		sd.BufferDesc.RefreshRate.Denominator = 1;
+		sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		sd.OutputWindow = hWnd;
+		sd.SampleDesc.Count = 1;
+		sd.SampleDesc.Quality = 0;
+		sd.Windowed = TRUE;
+
+		hr = dxgiFactory->CreateSwapChain(g_pd3dDevice, &sd, &g_pSwapChain);
+	}
+
+	dxgiFactory->Release();
+
+	// Create a render target view
+	ID3D11Texture2D* pBackBuffer = nullptr;
+	hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&pBackBuffer));
+
+
+	hr = g_pd3dDevice->CreateRenderTargetView(pBackBuffer, nullptr, &g_pRenderTargetView);
 	pBackBuffer->Release();
 
-	//Describe our Depth/Stencil Buffer
-	D3D11_TEXTURE2D_DESC depthStencilDesc;
-	ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
-	depthStencilDesc.Width = width;
-	depthStencilDesc.Height = height;
-	depthStencilDesc.MipLevels = 1;
-	depthStencilDesc.ArraySize = 1;
-	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	depthStencilDesc.SampleDesc.Count = 1;
-	depthStencilDesc.SampleDesc.Quality = 0;
-	depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-	depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-	depthStencilDesc.CPUAccessFlags = 0;
-	depthStencilDesc.MiscFlags = 0;
-	dev->CreateTexture2D(&depthStencilDesc, NULL, &depthStencilBuffer);
+
+	// Create depth stencil texture
+	D3D11_TEXTURE2D_DESC descDepth;
+	ZeroMemory(&descDepth, sizeof(descDepth));
+	descDepth.Width = width;
+	descDepth.Height = height;
+	descDepth.MipLevels = 1;
+	descDepth.ArraySize = 1;
+	descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	descDepth.SampleDesc.Count = 1;
+	descDepth.SampleDesc.Quality = 0;
+	descDepth.Usage = D3D11_USAGE_DEFAULT;
+	descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	descDepth.CPUAccessFlags = 0;
+	descDepth.MiscFlags = 0;
+	hr = g_pd3dDevice->CreateTexture2D(&descDepth, nullptr, &g_pDepthStencil);
 
 
+	// Create the depth stencil view
 	D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
 	ZeroMemory(&descDSV, sizeof(descDSV));
-	descDSV.Format = depthStencilDesc.Format;
+	descDSV.Format = descDepth.Format;
 	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	descDSV.Texture2D.MipSlice = 0;
-	dev->CreateDepthStencilView(depthStencilBuffer, &descDSV, &depthStencilView);
+	hr = g_pd3dDevice->CreateDepthStencilView(g_pDepthStencil, &descDSV, &g_pDepthStencilView);
 
+	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 
-	// set the render target as the back buffer
-	devcon->OMSetRenderTargets(1, &backbuffer, depthStencilView);
-
-	// Set the viewport
-	D3D11_VIEWPORT viewport;
-	ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
-	viewport.Width = width;
-	viewport.Height = height;
-	viewport.MinDepth = 0.0f;
-	viewport.MaxDepth = 1.0f;
-	devcon->RSSetViewports(1, &viewport);
+	// Setup the viewport
+	D3D11_VIEWPORT vp;
+	vp.Width = (FLOAT)width;
+	vp.Height = (FLOAT)height;
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
+	g_pImmediateContext->RSSetViewports(1, &vp);
 
 	//compile shaders
 	InitPipeline();
@@ -89,10 +172,12 @@ void RenderEngine::InitPipeline(void)
 {
 	// Compile the vertex shader
 	ID3DBlob* pVSBlob = nullptr;
-	CompileShaderFromFile(L"Shaders.fx", "VS", "vs_5_0", &pVSBlob);
+	CompileShaderFromFile(L"Shaders.fx", "VS", "vs_4_0", &pVSBlob);
+
 
 	// Create the vertex shader
-	dev->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &pVS);
+	g_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_pVertexShader);
+
 
 	// Define the input layout
 	D3D11_INPUT_ELEMENT_DESC layout[] =
@@ -103,36 +188,38 @@ void RenderEngine::InitPipeline(void)
 	UINT numElements = ARRAYSIZE(layout);
 
 	// Create the input layout
-	dev->CreateInputLayout(layout, numElements, pVSBlob->GetBufferPointer(),
-		pVSBlob->GetBufferSize(), &pVertexLayout);
-
+	g_pd3dDevice->CreateInputLayout(layout, numElements, pVSBlob->GetBufferPointer(),
+		pVSBlob->GetBufferSize(), &g_pVertexLayout);
 	pVSBlob->Release();
 
 	// Set the input layout
-	devcon->IASetInputLayout(pVertexLayout);
+	g_pImmediateContext->IASetInputLayout(g_pVertexLayout);
 
 	// Compile the pixel shader
 	ID3DBlob* pPSBlob = nullptr;
-	CompileShaderFromFile(L"Shaders.fx", "PS", "ps_5_0", &pPSBlob);
+	CompileShaderFromFile(L"Shaders.fx", "PS", "ps_4_0", &pPSBlob);
+
 
 	// Create the pixel shader
-	dev->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &pPS);
+	g_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_pPixelShader);
 	pPSBlob->Release();
 
 	// Compile the pixel shader
 	pPSBlob = nullptr;
-	CompileShaderFromFile(L"Shaders.fx", "PSSolid", "ps_5_0", &pPSBlob);
+	CompileShaderFromFile(L"Shaders.fx", "PSSolid", "ps_4_0", &pPSBlob);
+
 
 	// Create the pixel shader
-	dev->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &pPSSolid);
+	g_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_pPixelShaderSolid);
 	pPSBlob->Release();
+
 
 }
 
 void RenderEngine::InitGraphics(void)
 {
-	// create a triangle using the VERTEX struct
-	VERTEX vertices[] =
+	// Create vertex buffer
+	SimpleVertex vertices[] =
 	{
 		{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
 		{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
@@ -164,25 +251,26 @@ void RenderEngine::InitGraphics(void)
 		{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
 		{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
 	};
-
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(bd));
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(vertices) * 24;
+	bd.ByteWidth = sizeof(SimpleVertex) * 24;
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bd.CPUAccessFlags = 0;
 	D3D11_SUBRESOURCE_DATA InitData;
 	ZeroMemory(&InitData, sizeof(InitData));
 	InitData.pSysMem = vertices;
-	dev->CreateBuffer(&bd, &InitData, &pVBuffer);
+	g_pd3dDevice->CreateBuffer(&bd, &InitData, &g_pVertexBuffer);
+
 
 	// Set vertex buffer
-	UINT stride = sizeof(vertices);
+	UINT stride = sizeof(SimpleVertex);
 	UINT offset = 0;
-	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	g_pImmediateContext->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
 
-	//create index buffer
-	DWORD indices[] = {
+	// Create index buffer
+	WORD indices[] =
+	{
 		3,1,0,
 		2,1,3,
 
@@ -201,42 +289,39 @@ void RenderEngine::InitGraphics(void)
 		22,20,21,
 		23,20,22
 	};
-
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(DWORD) * 36;        // 36 vertices needed for 12 triangles in a triangle list
+	bd.ByteWidth = sizeof(WORD) * 36;        // 36 vertices needed for 12 triangles in a triangle list
 	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bd.CPUAccessFlags = 0;
 	InitData.pSysMem = indices;
-	dev->CreateBuffer(&bd, &InitData, &pIBuffer);
+	g_pd3dDevice->CreateBuffer(&bd, &InitData, &g_pIndexBuffer);
+
 
 	// Set index buffer
-	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	g_pImmediateContext->IASetIndexBuffer(g_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
 	// Set primitive topology
-	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// Create the constant buffer
 	bd.Usage = D3D11_USAGE_DEFAULT;
 	bd.ByteWidth = sizeof(ConstantBuffer);
 	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	bd.CPUAccessFlags = 0;
-	dev->CreateBuffer(&bd, nullptr, &pConstantBuffer);
+	g_pd3dDevice->CreateBuffer(&bd, nullptr, &g_pConstantBuffer);
+
 
 	// Initialize the world matrices
-	World = XMMatrixIdentity();
-
-	XMVECTOR camPosition;
-	XMVECTOR camTarget;
-	XMVECTOR camUp;
+	g_World = XMMatrixIdentity();
 
 	// Initialize the view matrix
-	camPosition = XMVectorSet(0.0f, 4.0f, -10.0f, 0.0f);
-	camTarget = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	View = XMMatrixLookAtLH(camPosition, camTarget, camUp);
+	XMVECTOR Eye = XMVectorSet(0.0f, 4.0f, -10.0f, 0.0f);
+	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	g_View = XMMatrixLookAtLH(Eye, At, Up);
 
 	// Initialize the projection matrix
-	Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, width / (FLOAT)height, 0.01f, 100.0f);
+	g_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, width / (FLOAT)height, 0.01f, 100.0f);
 
 }
 
@@ -245,19 +330,19 @@ void RenderEngine::RenderFrame(void)
 {
 	// Update our time
 	static float t = 0.0f;
-	
-	t += .004f;
+
+	t += .0001f;
 
 	if (t > 6.28f) {
 		t = 0;
 	}
 
 	// Rotate cube around the origin
-	World = XMMatrixRotationY(t);
+	g_World = XMMatrixRotationY(t);
 
 	// Setup our lighting parameters
-	XMFLOAT4 vLightDirs(0.0f, 0.0f, -1.0f, 1.0f);
-	XMFLOAT4 vLightColors(0.5f, 0.0f, 0.0f, 1.0f);
+	XMFLOAT4 vLightDirs = XMFLOAT4(0.0f, 0.0f, -1.0f, 1.0f);
+	XMFLOAT4 vLightColors = XMFLOAT4(0.5f, 0.0f, 0.0f, 1.0f);
 
 	// Rotate the second light around the origin
 	XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);
@@ -268,33 +353,34 @@ void RenderEngine::RenderFrame(void)
 	//
 	// Clear the back buffer
 	//
-	devcon->ClearRenderTargetView(backbuffer, DirectX::Colors::MidnightBlue);
+
+	g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, Colors::MidnightBlue);
 
 	//
 	// Clear the depth buffer to 1.0 (max depth)
 	//
-	devcon->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	//
 	// Update matrix variables and lighting variables
 	//
 	ConstantBuffer cb1;
-	cb1.mWorld = XMMatrixTranspose(World);
-	cb1.mView = XMMatrixTranspose(View);
-	cb1.mProjection = XMMatrixTranspose(Projection);
+	cb1.mWorld = XMMatrixTranspose(g_World);
+	cb1.mView = XMMatrixTranspose(g_View);
+	cb1.mProjection = XMMatrixTranspose(g_Projection);
 	cb1.vLightDir = vLightDirs;
 	cb1.vLightColor = vLightColors;
 	cb1.vOutputColor = XMFLOAT4(0, 0, 0, 0);
-	devcon->UpdateSubresource(pConstantBuffer, 0, nullptr, &cb1, 0, 0);
+	g_pImmediateContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
 	//
 	// Render the cube
 	//
-	devcon->VSSetShader(pVS, nullptr, 0);
-	devcon->VSSetConstantBuffers(0, 1, &pConstantBuffer);
-	devcon->PSSetShader(pPS, nullptr, 0);
-	devcon->PSSetConstantBuffers(0, 1, &pConstantBuffer);
-	devcon->DrawIndexed(36, 0, 0);
+	g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
+	g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
+	g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
+	g_pImmediateContext->PSSetConstantBuffers(0, 1, &g_pConstantBuffer);
+	g_pImmediateContext->DrawIndexed(36, 0, 0);
 
 	//
 	// Render each light
@@ -306,16 +392,15 @@ void RenderEngine::RenderFrame(void)
 	// Update the world variable to reflect the current light
 	cb1.mWorld = XMMatrixTranspose(mLight);
 	cb1.vOutputColor = vLightColors;
-	devcon->UpdateSubresource(pConstantBuffer, 0, nullptr, &cb1, 0, 0);
+	g_pImmediateContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
-	devcon->PSSetShader(pPSSolid, nullptr, 0);
-	devcon->PSSetConstantBuffers(0, 1, &pConstantBuffer);
-	devcon->DrawIndexed(36, 0, 0);
+	g_pImmediateContext->PSSetShader(g_pPixelShaderSolid, nullptr, 0);
+	g_pImmediateContext->DrawIndexed(36, 0, 0);
 
 	//
 	// Present our back buffer to our front buffer
 	//
-	swapchain->Present(0, 0);
+	g_pSwapChain->Present(0, 0);
 
 }
 
@@ -359,17 +444,22 @@ HRESULT RenderEngine::CompileShaderFromFile(WCHAR * szFileName, LPCSTR szEntryPo
 
 RenderEngine::~RenderEngine()
 {
-	// close and release all existing COM objects
-	pVertexLayout->Release();
-	pVS->Release();
-	pPS->Release();
-	pVBuffer->Release();
-	pIBuffer->Release();
-	swapchain->Release();
-	backbuffer->Release();
-	dev->Release();
-	devcon->Release();
-	depthStencilView->Release();
-	depthStencilBuffer->Release();
+	if (g_pImmediateContext) g_pImmediateContext->ClearState();
+
+	if (g_pConstantBuffer) g_pConstantBuffer->Release();
+	if (g_pVertexBuffer) g_pVertexBuffer->Release();
+	if (g_pIndexBuffer) g_pIndexBuffer->Release();
+	if (g_pVertexLayout) g_pVertexLayout->Release();
+	if (g_pVertexShader) g_pVertexShader->Release();
+	if (g_pPixelShader) g_pPixelShader->Release();
+	if (g_pDepthStencil) g_pDepthStencil->Release();
+	if (g_pDepthStencilView) g_pDepthStencilView->Release();
+	if (g_pRenderTargetView) g_pRenderTargetView->Release();
+	if (g_pSwapChain1) g_pSwapChain1->Release();
+	if (g_pSwapChain) g_pSwapChain->Release();
+	if (g_pImmediateContext1) g_pImmediateContext1->Release();
+	if (g_pImmediateContext) g_pImmediateContext->Release();
+	if (g_pd3dDevice1) g_pd3dDevice1->Release();
+	if (g_pd3dDevice) g_pd3dDevice->Release();
 }
 
