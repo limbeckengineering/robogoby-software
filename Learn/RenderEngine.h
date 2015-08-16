@@ -1,5 +1,10 @@
 #pragma once
 
+#include <vector>
+#include <iostream>
+#include <fstream>
+#include <cstring>
+#include <iterator>
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
 #include <directxmath.h>
@@ -16,13 +21,14 @@ class RenderEngine
 public:
 	RenderEngine(HWND hWnd);
 	virtual ~RenderEngine();
-	void RenderFrame(void);
+	void RenderFrame(float pitchAngle, float yawAngle);
 
 private:
 	HRESULT CompileShaderFromFile(WCHAR* szFileName,
 		LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
 	void InitGraphics(void);    // creates the shape to render
 	void InitPipeline(void);    // loads and prepares the shaders
+	void constructObjFromFile();
 
 	int width = 400;
 	int height = 400;
@@ -45,6 +51,7 @@ private:
 	ID3D11Buffer*           g_pVertexBuffer = nullptr;
 	ID3D11Buffer*           g_pIndexBuffer = nullptr;
 	ID3D11Buffer*           g_pConstantBuffer = nullptr;
+	ID3D11RasterizerState*	g_pRasterizerState = nullptr;
 	XMMATRIX                g_World;
 	XMMATRIX                g_View;
 	XMMATRIX                g_Projection;
@@ -56,6 +63,17 @@ private:
 	{
 		XMFLOAT3 Pos;
 		XMFLOAT3 Normal;
+
+		SimpleVertex() {
+			Pos = {};
+			Normal = {};
+		};
+
+		SimpleVertex(XMFLOAT3 pos) {
+			Pos = pos;
+			Normal = {};
+		};
+
 	};
 
 
@@ -68,5 +86,10 @@ private:
 		XMFLOAT4 vLightColor;
 		XMFLOAT4 vOutputColor;
 	};
+
+	std::vector<XMFLOAT3> normal;
+	std::vector<SimpleVertex> vertices;
+	std::vector<WORD> indices;
+
 };
 

@@ -79,4 +79,8 @@
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <Object Include="F:\Documents\Robogoby\arrow.obj" />
+    <Object Include="F:\Documents\Robogoby\TestCube.obj" />
+  </ItemGroup>
 </Project>

@@ -152,6 +152,14 @@ RenderEngine::RenderEngine(HWND hWnd)
 
 	g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 
+	D3D11_RASTERIZER_DESC rsdesc;
+	ZeroMemory(&rsdesc, sizeof(D3D11_RASTERIZER_DESC));
+	rsdesc.FillMode = D3D11_FILL_SOLID;
+	rsdesc.CullMode = D3D11_CULL_NONE;
+	hr = g_pd3dDevice->CreateRasterizerState(&rsdesc, &g_pRasterizerState);
+
+	g_pImmediateContext->RSSetState(g_pRasterizerState);
+
 	// Setup the viewport
 	D3D11_VIEWPORT vp;
 	vp.Width = (FLOAT)width;
@@ -216,10 +224,114 @@ void RenderEngine::InitPipeline(void)
 
 }
 
+void RenderEngine::constructObjFromFile()
+{
+	const int MAX_CHARS_PER_LINE = 512;
+	const int MAX_TOKENS_PER_LINE = 10;
+	const char* const DELIMITER = " ";
+	const char* const DELIMITER_2 = "/";
+
+	std::vector<int> vertexIndicesConsiderd = {};
+	std::ofstream f("./debug.txt");
+
+	std::ifstream fin;
+	fin.open("F:\\Documents\\Robogoby\\Arrow.obj");
+
+	if (!fin.good())
+		printf("file not found"); // exit if file not found
+
+	while (!fin.eof()) {
+		// read an entire line into memory
+		char buf[MAX_CHARS_PER_LINE];
+		fin.getline(buf, MAX_CHARS_PER_LINE);
+
+		// array to store memory addresses of the tokens in buf
+		char* token[MAX_TOKENS_PER_LINE] = {}; // initialize to 0
+
+		// parse the line
+		token[0] = strtok(buf, DELIMITER); // first token
+		if (strcmp(token[0], "#") == 0 || strcmp(token[0], "o") == 0
+			|| strcmp(token[0], "s") == 0 || strcmp(token[0], "") == 0) {
+			//fin.ignore(1000, '\n');
+		}
+		else
+		{
+			//scan subsequent tokens
+			for (int n = 1; n < MAX_TOKENS_PER_LINE; n++)
+			{
+				token[n] = strtok(NULL, DELIMITER); // subsequent tokens
+				if (!token[n]) break; // no more tokens
+			}
+
+			if (strcmp(token[0], "v") == 0) {
+
+				vertices.push_back(SimpleVertex(XMFLOAT3(atof(token[1]), atof(token[2]), atof(token[3]))));
+				printf("red vert\n");
+
+			}
+			else if (strcmp(token[0], "vn") == 0) {
+
+				normal.push_back(XMFLOAT3(atof(token[1]), atof(token[2]), atof(token[3])));
+				printf("red vert norm\n");
+			}
+			else if (strcmp(token[0], "f") == 0) {
+
+				const char* innerToken;
+				for (int i = 0; i < 3; i++) {
+					int vi, ni;
+
+					innerToken = strtok(token[i + 1], DELIMITER_2); // first inner token
+
+					indices.push_back(atoi(innerToken) - 1);
+					vi = atoi(innerToken) - 1;
+
+					innerToken = strtok(NULL, DELIMITER_2); // second inner token
+
+					//normalIndex.push_back(atoi(innerToken) - 1);
+					ni = atoi(innerToken) - 1;
+
+					if (std::find(vertexIndicesConsiderd.begin(), vertexIndicesConsiderd.end(), vi)
+						== vertexIndicesConsiderd.end()) {
+						vertexIndicesConsiderd.push_back(vi);
+						vertices[vi].Normal = normal[ni];
+					}
+
+				}
+
+				//int s = indices.size();
+				//std::swap(indices[s - 3], indices[s - 2]);
+
+			}
+			else {
+				//fin.ignore(1000, '\n');
+			}
+
+		}
+
+	}
+
+	for (int i = 0; i < vertices.size(); i++) {
+		f << vertices[i].Pos.x << " " << vertices[i].Pos.y << " " << vertices[i].Pos.z << " "
+			<< vertices[i].Normal.x << " " << vertices[i].Normal.y << " " << vertices[i].Normal.z << " " << '\n';
+	}
+
+	f << "----------------------------------------------------------\n";
+
+	for (int i = 0; i < indices.size(); i++) {
+		f << indices[i] << '\n';
+	}
+
+	printf("Verts: %d\nInidices: %d\n", vertices.size(), indices.size());
+
+}
+
 void RenderEngine::InitGraphics(void)
 {
+
+	constructObjFromFile();
+
 	// Create vertex buffer
-	SimpleVertex vertices[] =
+/*	SimpleVertex vertices[] =
 	{
 		{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
 		{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
@@ -250,16 +362,16 @@ void RenderEngine::InitGraphics(void)
 		{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
 		{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
 		{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-	};
+	};*/
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(bd));
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(SimpleVertex) * 24;
+	bd.ByteWidth = sizeof(SimpleVertex) * vertices.size();
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bd.CPUAccessFlags = 0;
 	D3D11_SUBRESOURCE_DATA InitData;
 	ZeroMemory(&InitData, sizeof(InitData));
-	InitData.pSysMem = vertices;
+	InitData.pSysMem = &vertices[0];
 	g_pd3dDevice->CreateBuffer(&bd, &InitData, &g_pVertexBuffer);
 
 
@@ -268,32 +380,12 @@ void RenderEngine::InitGraphics(void)
 	UINT offset = 0;
 	g_pImmediateContext->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
 
-	// Create index buffer
-	WORD indices[] =
-	{
-		3,1,0,
-		2,1,3,
 
-		6,4,5,
-		7,4,6,
-
-		11,9,8,
-		10,9,11,
-
-		14,12,13,
-		15,12,14,
-
-		19,17,16,
-		18,17,19,
-
-		22,20,21,
-		23,20,22
-	};
 	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(WORD) * 36;        // 36 vertices needed for 12 triangles in a triangle list
+	bd.ByteWidth = sizeof(WORD) * indices.size();        // 36 vertices needed for 12 triangles in a triangle list
 	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bd.CPUAccessFlags = 0;
-	InitData.pSysMem = indices;
+	InitData.pSysMem = &indices[0];
 	g_pd3dDevice->CreateBuffer(&bd, &InitData, &g_pIndexBuffer);
 
 
@@ -326,7 +418,7 @@ void RenderEngine::InitGraphics(void)
 }
 
 // this is the function used to render a single frame
-void RenderEngine::RenderFrame(void)
+void RenderEngine::RenderFrame(float pitchAngle, float yawAngle)
 {
 	// Update our time
 	static float t = 0.0f;
@@ -341,14 +433,14 @@ void RenderEngine::RenderFrame(void)
 	g_World = XMMatrixRotationY(t);
 
 	// Setup our lighting parameters
-	XMFLOAT4 vLightDirs = XMFLOAT4(0.0f, 0.0f, -1.0f, 1.0f);
-	XMFLOAT4 vLightColors = XMFLOAT4(0.5f, 0.0f, 0.0f, 1.0f);
+	XMFLOAT4 vLightDirs = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	XMFLOAT4 vLightColors = XMFLOAT4(.5f, .5f, .5f, 1.0f);
 
 	// Rotate the second light around the origin
-	XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);
+	/*XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);
 	XMVECTOR vLightDir = XMLoadFloat4(&vLightDirs);
 	vLightDir = XMVector3Transform(vLightDir, mRotate);
-	XMStoreFloat4(&vLightDirs, vLightDir);
+	XMStoreFloat4(&vLightDirs, vLightDir);*/
 
 	//
 	// Clear the back buffer
@@ -370,7 +462,7 @@ void RenderEngine::RenderFrame(void)
 	cb1.mProjection = XMMatrixTranspose(g_Projection);
 	cb1.vLightDir = vLightDirs;
 	cb1.vLightColor = vLightColors;
-	cb1.vOutputColor = XMFLOAT4(0, 0, 0, 0);
+	cb1.vOutputColor = XMFLOAT4(0.4f, 0.6f, 0.4f, 1.0f);
 	g_pImmediateContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
 	//
@@ -380,22 +472,7 @@ void RenderEngine::RenderFrame(void)
 	g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
 	g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
 	g_pImmediateContext->PSSetConstantBuffers(0, 1, &g_pConstantBuffer);
-	g_pImmediateContext->DrawIndexed(36, 0, 0);
-
-	//
-	// Render each light
-	//
-	XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&vLightDirs));
-	XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
-	mLight = mLightScale * mLight;
-
-	// Update the world variable to reflect the current light
-	cb1.mWorld = XMMatrixTranspose(mLight);
-	cb1.vOutputColor = vLightColors;
-	g_pImmediateContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
-
-	g_pImmediateContext->PSSetShader(g_pPixelShaderSolid, nullptr, 0);
-	g_pImmediateContext->DrawIndexed(36, 0, 0);
+	g_pImmediateContext->DrawIndexed(indices.size(), 0, 0);
 
 	//
 	// Present our back buffer to our front buffer
@@ -461,5 +538,6 @@ RenderEngine::~RenderEngine()
 	if (g_pImmediateContext) g_pImmediateContext->Release();
 	if (g_pd3dDevice1) g_pd3dDevice1->Release();
 	if (g_pd3dDevice) g_pd3dDevice->Release();
+	if (g_pRasterizerState) g_pRasterizerState->Release();
 }
 

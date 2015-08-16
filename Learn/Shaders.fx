@@ -1,11 +1,4 @@
 //--------------------------------------------------------------------------------------
-// File: Tutorial06.fx
-//
-// Copyright (c) Microsoft Corporation. All rights reserved.
-//--------------------------------------------------------------------------------------
-
-
-//--------------------------------------------------------------------------------------
 // Constant Buffer Variables
 //--------------------------------------------------------------------------------------
 cbuffer ConstantBuffer : register(b0)
@@ -53,7 +46,7 @@ PS_INPUT VS(VS_INPUT input)
 //--------------------------------------------------------------------------------------
 float4 PS(PS_INPUT input) : SV_Target
 {
-	float4 finalColor = 0;
+	float4 finalColor = vOutputColor;
 
 	finalColor += saturate(dot((float3)vLightDir,input.Norm) * vLightColor);
 	

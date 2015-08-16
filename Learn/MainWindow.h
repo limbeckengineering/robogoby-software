@@ -562,7 +562,6 @@ namespace Learn {
 
 			 //populate the currentGeneralSendBuf with current settings 
 	private: System::Void populateSendBuf() {
-		//TODO redo this with bit math and shifts 
 		currentGeneralSendBuf[0] = fps & 0xFF;
 		currentGeneralSendBuf[1] = fps >> 8;
 		currentGeneralSendBuf[2] = width & 0xFF;
