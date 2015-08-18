@@ -6,7 +6,7 @@
 //IP address of the server
 std::string IP = "10.0.1.31";
 
-namespace Learn {
+namespace RoboGobyOCU {
 
 	using namespace System;
 	using namespace System::ComponentModel;

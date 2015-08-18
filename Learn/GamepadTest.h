@@ -10,7 +10,7 @@ GamePad * gp;
 
 bool buttonsPressed[14];
 
-namespace Learn {
+namespace RoboGobyOCU {
 
 	using namespace System;
 	using namespace System::ComponentModel;

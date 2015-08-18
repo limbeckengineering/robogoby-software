@@ -117,7 +117,7 @@ int main(cli::array<System::String ^> ^args)
 	Application::EnableVisualStyles();
 	Application::SetCompatibleTextRenderingDefault(false);
 
-	Learn::MainWindow form;
+	RoboGobyOCU::MainWindow form;
 	Application::Run(%form);
 
 	return 0;

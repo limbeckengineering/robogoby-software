@@ -5,7 +5,7 @@
 uint16_t fps = 15;
 uint8_t gain = 15, exposure = 15, LED = 15;
 
-namespace Learn {
+namespace RoboGobyOCU {
 
 	using namespace System;
 	using namespace System::ComponentModel;

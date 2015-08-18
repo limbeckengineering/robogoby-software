@@ -16,21 +16,32 @@
 
 //global variables
 
-uint8_t generalRecvBuf[10];
+const int MESSAGE_TO_SERVER_BIT_WIDTH = 17;
+const int MESSAGE_FROM_SERVER_BIT_WIDTH = 10;
+
+uint8_t generalRecvBuf[MESSAGE_FROM_SERVER_BIT_WIDTH];
 
 //Buffer filled with data to send to server
 //General Send Buffer :
-//FPS		16 - bit u
+//FPS			16 - bit u
 //width 		16 - bit u
 //height		16 - bit u
 //LED PWM		8 - bit u
-//Gain		8 - bit u
-//Exposure	8 - bit u
+//Gain			8 - bit u
+//Exposure		8 - bit u
 //captureLOrR	8 - bit u
-uint8_t currentGeneralSendBuf[10];
+//--Sub Thrusters--
+//M				8 - bit u
+//HB			8 - bit u
+//HF			8 - bit u
+//VB			8 - bit u
+//VF			8 - bit u
+//cameraView	8 - bit u
+//mainLedPwm	8 - bit u
+uint8_t currentGeneralSendBuf[MESSAGE_TO_SERVER_BIT_WIDTH];
 
 //Last buffer to be sent; used as a check to see if anything has changed
-uint8_t lastGeneralSendBuf[10];
+uint8_t lastGeneralSendBuf[MESSAGE_TO_SERVER_BIT_WIDTH];
 
 //buffer for the left frame of the camera
 std::vector<char> leftFrameBuf(76800);
@@ -57,10 +68,10 @@ std::atomic<bool> frameBeingPut(false);
 //is controller connected
 std::atomic<bool> isConnected(false);
 
-// A B X Y DU DD DL DR LS RS LT RT S B
+// A B X Y DU DD DL DR LS RS LB RB S B
 std::atomic<bool> buttonsPressed[14];
 
-// A B X Y DU DD DL DR LS RS LT RT S B
+// A B X Y DU DD DL DR LS RS LB RB S B
 std::atomic<bool> buttonsDown[14];
 
 //Lx Ly Rx Ry LT RT
@@ -68,8 +79,19 @@ std::atomic<float> stickAndTriggers[6];
 
 //end gamepad
 
+//Commands to sub
+//M HB HF VB VF
+std::atomic<uint8_t> thrusters[5];
 
-namespace Learn {
+//movement of view camera
+std::atomic<uint8_t> cameraView = 0;
+
+//PWM of forward LEDs
+std::atomic<uint8_t> mainLedPwm = 0;
+
+//end commands to sub
+
+namespace RoboGobyOCU {
 
 	using namespace System;
 	using namespace System::ComponentModel;
@@ -79,7 +101,7 @@ namespace Learn {
 	using namespace System::Drawing;
 
 	/// <summary>
-	/// this is the main window for the RoboGoby client 
+	/// This is the main window for the RoboGoby client 
 	/// </summary>
 	public ref class MainWindow : public System::Windows::Forms::Form
 	{
@@ -88,10 +110,13 @@ namespace Learn {
 		{
 			//initialize GUI
 			InitializeComponent();
+
 			bgwGamepad->RunWorkerAsync();
+
 			re = new RenderEngine((HWND)subRenderWindow->Handle.ToPointer());
 			bgwRenderLoop->RunWorkerAsync();
 
+			bgwCommandParsing->RunWorkerAsync();
 		}
 
 	protected:
@@ -132,6 +157,7 @@ namespace Learn {
 	private: System::Windows::Forms::RichTextBox^  outputConsol;
 	private: System::Windows::Forms::PictureBox^  subRenderWindow;
 	private: System::ComponentModel::BackgroundWorker^  bgwRenderLoop;
+	private: System::ComponentModel::BackgroundWorker^  bgwCommandParsing;
 
 
 	private:
@@ -165,6 +191,7 @@ namespace Learn {
 			this->outputConsol = (gcnew System::Windows::Forms::RichTextBox());
 			this->subRenderWindow = (gcnew System::Windows::Forms::PictureBox());
 			this->bgwRenderLoop = (gcnew System::ComponentModel::BackgroundWorker());
+			this->bgwCommandParsing = (gcnew System::ComponentModel::BackgroundWorker());
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->pb1))->BeginInit();
 			this->menuStrip1->SuspendLayout();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->subRenderWindow))->BeginInit();
@@ -319,6 +346,10 @@ namespace Learn {
 			// 
 			this->bgwRenderLoop->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwRenderLoop_DoWork);
 			// 
+			// bgwCommandParsing
+			// 
+			this->bgwCommandParsing->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwCommandParsing_DoWork);
+			// 
 			// MainWindow
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
@@ -429,7 +460,7 @@ namespace Learn {
 
 			worker->ReportProgress(1);
 
-			iResult = client->readCli((char *)generalRecvBuf, 10, 0, false);
+			iResult = client->readCli((char *)generalRecvBuf, MESSAGE_FROM_SERVER_BIT_WIDTH, 0, false);
 
 			if (iResult < 0) break;
 
@@ -437,7 +468,7 @@ namespace Learn {
 			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
 			populateSendBuf();
 			if (lastGeneralSendBuf != currentGeneralSendBuf) {
-				iResult = client->writeCli((char *)currentGeneralSendBuf, 10, 0, true);
+				iResult = client->writeCli((char *)currentGeneralSendBuf, MESSAGE_TO_SERVER_BIT_WIDTH, 0, true);
 				currentToLastBuf();
 				if (iResult < 0) break;
 			}
@@ -475,32 +506,110 @@ namespace Learn {
 		GamePad * gp = new GamePad(1);
 		while (true) {
 			gp->Update();
-			isConnected.store(gp->Connected(), std::memory_order_relaxed);
+			
+			while (gp->Connected()) {
+				gp->Update();
+				isConnected.store(gp->Connected(), std::memory_order_relaxed);
 
+				for (int i = 0; i < 14; i++) {
+					buttonsDown[i].store(gp->GetButtonDown(i), std::memory_order_relaxed);
+				}
 
-			for (int i = 0; i < 14; i++) {
-				buttonsDown[i].store(gp->GetButtonDown(i), std::memory_order_relaxed);
+				for (int i = 0; i < 14; i++) {
+					buttonsPressed[i].store(gp->GetButtonPressed(i), std::memory_order_relaxed);
+				}
+
+				stickAndTriggers[0].store(gp->LeftStick_X(), std::memory_order_relaxed);
+				stickAndTriggers[1].store(gp->LeftStick_Y(), std::memory_order_relaxed);
+				stickAndTriggers[2].store(gp->RightStick_X(), std::memory_order_relaxed);
+				stickAndTriggers[3].store(gp->RightStick_Y(), std::memory_order_relaxed);
+				stickAndTriggers[4].store(gp->LeftTrigger(), std::memory_order_relaxed);
+				stickAndTriggers[5].store(gp->RightTrigger(), std::memory_order_relaxed);
+
+				gp->RefreshState();
 			}
-
-			for (int i = 0; i < 14; i++) {
-				buttonsPressed[i].store(gp->GetButtonPressed(i), std::memory_order_relaxed);
-			}
-
-			stickAndTriggers[0].store(gp->LeftStick_X(), std::memory_order_relaxed);
-			stickAndTriggers[1].store(gp->LeftStick_Y(), std::memory_order_relaxed);
-			stickAndTriggers[2].store(gp->RightStick_X(), std::memory_order_relaxed);
-			stickAndTriggers[3].store(gp->RightStick_Y(), std::memory_order_relaxed);
-			stickAndTriggers[4].store(gp->LeftTrigger(), std::memory_order_relaxed);
-			stickAndTriggers[5].store(gp->RightTrigger(), std::memory_order_relaxed);
 
 			gp->RefreshState();
 		}
-
-
 	}
 
 	private: System::Void bgwRenderLoop_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
-		while (true) {re->RenderFrame(); }
+		while (true) { re->RenderFrame(0, 0); }
+	}
+
+	private: System::Void bgwCommandParsing_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
+		//5 thruster values
+		//1 camera tilt value
+		//1 light pwm
+
+		//use x^3 as a scalling function
+		//scale raw float value of [-1, 1] through function first
+		//multiply by 100 and truncate, leaving a value [-100, 100]
+		//add 100 to get a value [0, 200]
+
+
+		//TODO Zero all commands so nothing caries over from the last loop 
+
+		while (true) {
+			//if we are trying to pitch
+			if (stickAndTriggers[3].load() != 0.0f) {
+				thrusters[4].store((uint8_t)((100 * pow(stickAndTriggers[3].load(), 3)) + 100));
+				thrusters[3].store((uint8_t)((-100 * pow(stickAndTriggers[3].load(), 3)) + 100));
+			}
+			//if we are trying to ascend or descend with the triggers
+			else {
+				int cumTriggerValue = (uint8_t)((pow(stickAndTriggers[4].load(), 3) * -100) + (pow(stickAndTriggers[5].load(), 3) * 100));
+
+				thrusters[4].store(cumTriggerValue);
+				thrusters[3].store(cumTriggerValue);
+			}
+			//if we are trying to yaw
+			if (stickAndTriggers[2].load() != 0) {
+				thrusters[2].store((uint8_t)((100 * pow(stickAndTriggers[2].load(), 3)) + 100));
+				thrusters[1].store((uint8_t)((-100 * pow(stickAndTriggers[2].load(), 3)) + 100));
+			}
+			//if we are trying to strafe
+			else {
+				int thrust = (uint8_t)(100 * pow(stickAndTriggers[2].load(), 3)) + 100;
+
+				thrusters[2].store(thrust);
+				thrusters[1].store(thrust);
+			}
+
+			//back thruster gets set here; easy because it ony gets used in one manuver
+			thrusters[0].store((uint8_t)((100 * pow(stickAndTriggers[1].load(), 3)) + 100));
+
+			//update main lights
+			uint8_t pwm = mainLedPwm.load();
+
+			if (buttonsDown[11].load() == true) {
+				pwm += 10;
+			}
+			if (buttonsDown[10].load() == true) {
+				pwm -= 10;
+			}
+
+			if (pwm < 0) {
+				pwm = 0;
+			}
+			else if (pwm > 90) {
+				pwm = 90;
+			}
+
+			mainLedPwm.store(pwm);
+
+			//camera servo
+
+			if (buttonsDown[7].load() == true) {
+				cameraView.store(110);
+			}
+			else if (buttonsDown[6] == true) {
+				cameraView.store(90);
+			}
+			else {
+				cameraView.store(100);
+			}
+		}
 	}
 
 	private: System::Void startNewConnectionToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
@@ -530,7 +639,7 @@ namespace Learn {
 	}
 
 	private: System::Void fPSToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-		Learn::FPSDialog ^ fpsDialog = gcnew Learn::FPSDialog();
+		RoboGobyOCU::FPSDialog ^ fpsDialog = gcnew RoboGobyOCU::FPSDialog();
 		fpsDialog->ShowDialog(this);
 	}
 
@@ -556,7 +665,7 @@ namespace Learn {
 	}
 
 	private: System::Void serverSettingsToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-		Learn::serverSettingsDialoge ^ serDialog = gcnew Learn::serverSettingsDialoge();
+		RoboGobyOCU::serverSettingsDialoge ^ serDialog = gcnew RoboGobyOCU::serverSettingsDialoge();
 		serDialog->ShowDialog(this);
 	}
 
@@ -572,12 +681,20 @@ namespace Learn {
 		currentGeneralSendBuf[7] = gain;
 		currentGeneralSendBuf[8] = exposure;
 		currentGeneralSendBuf[9] = captureLOrR;
+		currentGeneralSendBuf[10] = thrusters[0].load();
+		currentGeneralSendBuf[11] = thrusters[1].load();
+		currentGeneralSendBuf[12] = thrusters[2].load();
+		currentGeneralSendBuf[13] = thrusters[3].load();
+		currentGeneralSendBuf[14] = thrusters[4].load();
+		currentGeneralSendBuf[15] = cameraView.load();
+		currentGeneralSendBuf[16] = mainLedPwm.load();
 	}
 
 			 //sets the lastGeneralSendBuf to the currentGeneralSendBuf
 	private: System::Void currentToLastBuf() {
-		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, 10);
+		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, MESSAGE_TO_SERVER_BIT_WIDTH);
 	}
+
 
 	};
 

@@ -232,10 +232,10 @@ void RenderEngine::constructObjFromFile()
 	const char* const DELIMITER_2 = "/";
 
 	std::vector<int> vertexIndicesConsiderd = {};
-	std::ofstream f("./debug.txt");
+	//std::ofstream f("./debug.txt");
 
 	std::ifstream fin;
-	fin.open("F:\\Documents\\Robogoby\\Arrow.obj");
+	fin.open("Arrow.obj");
 
 	if (!fin.good())
 		printf("file not found"); // exit if file not found
@@ -252,7 +252,7 @@ void RenderEngine::constructObjFromFile()
 		token[0] = strtok(buf, DELIMITER); // first token
 		if (strcmp(token[0], "#") == 0 || strcmp(token[0], "o") == 0
 			|| strcmp(token[0], "s") == 0 || strcmp(token[0], "") == 0) {
-			//fin.ignore(1000, '\n');
+
 		}
 		else
 		{
@@ -266,13 +266,11 @@ void RenderEngine::constructObjFromFile()
 			if (strcmp(token[0], "v") == 0) {
 
 				vertices.push_back(SimpleVertex(XMFLOAT3(atof(token[1]), atof(token[2]), atof(token[3]))));
-				printf("red vert\n");
 
 			}
 			else if (strcmp(token[0], "vn") == 0) {
 
 				normal.push_back(XMFLOAT3(atof(token[1]), atof(token[2]), atof(token[3])));
-				printf("red vert norm\n");
 			}
 			else if (strcmp(token[0], "f") == 0) {
 
@@ -298,19 +296,16 @@ void RenderEngine::constructObjFromFile()
 
 				}
 
-				//int s = indices.size();
-				//std::swap(indices[s - 3], indices[s - 2]);
-
 			}
 			else {
-				//fin.ignore(1000, '\n');
+
 			}
 
 		}
 
 	}
 
-	for (int i = 0; i < vertices.size(); i++) {
+	/*for (int i = 0; i < vertices.size(); i++) {
 		f << vertices[i].Pos.x << " " << vertices[i].Pos.y << " " << vertices[i].Pos.z << " "
 			<< vertices[i].Normal.x << " " << vertices[i].Normal.y << " " << vertices[i].Normal.z << " " << '\n';
 	}
@@ -319,9 +314,9 @@ void RenderEngine::constructObjFromFile()
 
 	for (int i = 0; i < indices.size(); i++) {
 		f << indices[i] << '\n';
-	}
+	}*/
 
-	printf("Verts: %d\nInidices: %d\n", vertices.size(), indices.size());
+	//printf("Verts: %d\nInidices: %d\n", vertices.size(), indices.size());
 
 }
 
