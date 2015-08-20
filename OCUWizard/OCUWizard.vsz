@@ -1,0 +1,6 @@
+VSWIZARD 7.0
+Wizard=VsWizard.VsWizardEngine.14.0
+
+Param="WIZARD_NAME = OCUWizard"
+Param="ABSOLUTE_PATH = C:\Users\iamxanadu\Documents\Visual Studio 2015\Projects\CLRLearn\OCUWizard"
+Param="FALLBACK_LCID = 1033"

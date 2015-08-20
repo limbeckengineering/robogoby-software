@@ -186,6 +186,13 @@ void RenderEngine::InitPipeline(void)
 	// Create the vertex shader
 	g_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_pVertexShader);
 
+	// Compile the flat light vertex shader
+	pVSBlob = nullptr;
+	CompileShaderFromFile(L"Shaders.fx", "VSFlat", "vs_4_0", &pVSBlob);
+
+
+	// Create the pixel shader
+	g_pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_pVertexShaderFlat);
 
 	// Define the input layout
 	D3D11_INPUT_ELEMENT_DESC layout[] =
@@ -198,10 +205,12 @@ void RenderEngine::InitPipeline(void)
 	// Create the input layout
 	g_pd3dDevice->CreateInputLayout(layout, numElements, pVSBlob->GetBufferPointer(),
 		pVSBlob->GetBufferSize(), &g_pVertexLayout);
-	pVSBlob->Release();
 
 	// Set the input layout
 	g_pImmediateContext->IASetInputLayout(g_pVertexLayout);
+
+	pVSBlob->Release();
+
 
 	// Compile the pixel shader
 	ID3DBlob* pPSBlob = nullptr;
@@ -210,15 +219,6 @@ void RenderEngine::InitPipeline(void)
 
 	// Create the pixel shader
 	g_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_pPixelShader);
-	pPSBlob->Release();
-
-	// Compile the pixel shader
-	pPSBlob = nullptr;
-	CompileShaderFromFile(L"Shaders.fx", "PSSolid", "ps_4_0", &pPSBlob);
-
-
-	// Create the pixel shader
-	g_pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_pPixelShaderSolid);
 	pPSBlob->Release();
 
 
@@ -305,6 +305,60 @@ void RenderEngine::constructObjFromFile()
 
 	}
 
+	fin.close();
+
+	fin.open("Arrow_flat.obj");
+
+	if (!fin.good())
+		printf("file not found"); // exit if file not found
+
+	while (!fin.eof()) {
+		// read an entire line into memory
+		char buf[MAX_CHARS_PER_LINE];
+		fin.getline(buf, MAX_CHARS_PER_LINE);
+
+		// array to store memory addresses of the tokens in buf
+		char* token[MAX_TOKENS_PER_LINE] = {}; // initialize to 0
+
+											   // parse the line
+		token[0] = strtok(buf, DELIMITER); // first token
+		if (strcmp(token[0], "#") == 0 || strcmp(token[0], "o") == 0
+			|| strcmp(token[0], "s") == 0 || strcmp(token[0], "v") == 0) {
+
+		}
+		else
+		{
+			//scan subsequent tokens
+			for (int n = 1; n < MAX_TOKENS_PER_LINE; n++)
+			{
+				token[n] = strtok(NULL, DELIMITER); // subsequent tokens
+				if (!token[n]) break; // no more tokens
+			}
+
+			if (strcmp(token[0], "vn") == 0) {
+
+				faceNormal.push_back(XMFLOAT3(atof(token[1]), atof(token[2]), atof(token[3])));
+			}
+			else if (strcmp(token[0], "f") == 0) {
+
+				const char* innerToken;
+
+				int ni;
+
+				innerToken = strtok(token[1], DELIMITER_2); // first inner token
+
+				innerToken = strtok(NULL, DELIMITER_2); // second inner token
+
+				ni = atoi(innerToken) - 1;
+
+				faceNormalIndices.push_back(ni);
+
+			}
+
+		}
+
+	}
+
 	/*for (int i = 0; i < vertices.size(); i++) {
 		f << vertices[i].Pos.x << " " << vertices[i].Pos.y << " " << vertices[i].Pos.z << " "
 			<< vertices[i].Normal.x << " " << vertices[i].Normal.y << " " << vertices[i].Normal.z << " " << '\n';
@@ -326,38 +380,6 @@ void RenderEngine::InitGraphics(void)
 	constructObjFromFile();
 
 	// Create vertex buffer
-/*	SimpleVertex vertices[] =
-	{
-		{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-
-		{ XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-
-		{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-
-		{ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-
-		{ XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-	};*/
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(bd));
 	bd.Usage = D3D11_USAGE_DEFAULT;
@@ -431,11 +453,6 @@ void RenderEngine::RenderFrame(float pitchAngle, float yawAngle)
 	XMFLOAT4 vLightDirs = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	XMFLOAT4 vLightColors = XMFLOAT4(.5f, .5f, .5f, 1.0f);
 
-	// Rotate the second light around the origin
-	/*XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);
-	XMVECTOR vLightDir = XMLoadFloat4(&vLightDirs);
-	vLightDir = XMVector3Transform(vLightDir, mRotate);
-	XMStoreFloat4(&vLightDirs, vLightDir);*/
 
 	//
 	// Clear the back buffer
@@ -457,14 +474,23 @@ void RenderEngine::RenderFrame(float pitchAngle, float yawAngle)
 	cb1.mProjection = XMMatrixTranspose(g_Projection);
 	cb1.vLightDir = vLightDirs;
 	cb1.vLightColor = vLightColors;
-	cb1.vOutputColor = XMFLOAT4(0.4f, 0.6f, 0.4f, 1.0f);
+	cb1.vOutputColor = XMFLOAT4(0.2f, 0.8f, 0.8f, 1.0f);
+	memcpy(&cb1.faceNormals, &faceNormal, faceNormal.size());
+	memcpy(&cb1.normalIndices, &faceNormalIndices, faceNormalIndices.size());
 	g_pImmediateContext->UpdateSubresource(g_pConstantBuffer, 0, nullptr, &cb1, 0, 0);
 
 	//
 	// Render the cube
 	//
-	g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
-	g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
+	if (!flat) {
+		g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
+		g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
+	}
+	else {
+		g_pImmediateContext->VSSetShader(g_pVertexShaderFlat, nullptr, 0);
+		g_pImmediateContext->VSSetConstantBuffers(0, 1, &g_pConstantBuffer);
+	}
+
 	g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
 	g_pImmediateContext->PSSetConstantBuffers(0, 1, &g_pConstantBuffer);
 	g_pImmediateContext->DrawIndexed(indices.size(), 0, 0);

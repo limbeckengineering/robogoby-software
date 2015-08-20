@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Template Files">
+      <UniqueIdentifier>{d6c9bb55-c3bd-4136-8a0d-d754faf92e3b}</UniqueIdentifier>
+      <Extensions>txt</Extensions>
+    </Filter>
+    <Filter Include="HTML Files">
+      <UniqueIdentifier>{acc871c6-e231-42b1-98bc-c789d556ba56}</UniqueIdentifier>
+      <Extensions>htm</Extensions>
+    </Filter>
+    <Filter Include="Image Files">
+      <UniqueIdentifier>{727373ca-954f-4099-a053-f82e0a01c9a9}</UniqueIdentifier>
+      <Extensions>bmp</Extensions>
+    </Filter>
+    <Filter Include="Script Files">
+      <UniqueIdentifier>{eae90772-ee6c-4977-ba9d-67aa38878dcd}</UniqueIdentifier>
+      <Extensions>js</Extensions>
+    </Filter>
+    <Filter Include="Miscellaneous Files">
+      <UniqueIdentifier>{17bec02c-0097-4fef-aedb-26334fc1f02a}</UniqueIdentifier>
+      <Extensions>vsz;vsdir;ico;vcxproj;csproj;css;inf</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="Templates\1033\ReadMe.txt">
+      <Filter>Template Files</Filter>
+    </Text>
+    <Text Include="Templates\1033\Sample.txt">
+      <Filter>Template Files</Filter>
+    </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Templates\1033\Templates.inf">
+      <Filter>Miscellaneous Files</Filter>
+    </None>
+    <None Include="OCUWizard.vsz">
+      <Filter>Miscellaneous Files</Filter>
+    </None>
+    <None Include="Scripts\1033\default.js">
+      <Filter>Script Files</Filter>
+    </None>
+    <None Include="default.vcxproj">
+      <Filter>Miscellaneous Files</Filter>
+    </None>
+    <None Include="OCUWizard.vsdir">
+      <Filter>Miscellaneous Files</Filter>
+    </None>
+    <None Include="HTML\1033\default.htm">
+      <Filter>HTML Files</Filter>
+    </None>
+    <None Include="1033\NewStyles.css">
+      <Filter>Miscellaneous Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="OCUWizard.ico">
+      <Filter>Miscellaneous Files</Filter>
+    </Image>
+    <Image Include="Images\OCUWizard.gif" />
+    <Image Include="Images\OCUWizard_Background.gif" />
+    <Image Include="1033\Images\DottedHori.gif" />
+    <Image Include="1033\Images\DottedVert.gif" />
+    <Image Include="1033\Images\spacer.gif" />
+  </ItemGroup>
+</Project>

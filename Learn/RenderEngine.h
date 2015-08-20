@@ -33,6 +33,8 @@ private:
 	int width = 400;
 	int height = 400;
 
+	bool flat = false;
+
 	D3D_DRIVER_TYPE         g_driverType = D3D_DRIVER_TYPE_NULL;
 	D3D_FEATURE_LEVEL       g_featureLevel = D3D_FEATURE_LEVEL_11_0;
 	ID3D11Device*           g_pd3dDevice = nullptr;
@@ -45,8 +47,8 @@ private:
 	ID3D11Texture2D*        g_pDepthStencil = nullptr;
 	ID3D11DepthStencilView* g_pDepthStencilView = nullptr;
 	ID3D11VertexShader*     g_pVertexShader = nullptr;
+	ID3D11VertexShader*     g_pVertexShaderFlat = nullptr;
 	ID3D11PixelShader*      g_pPixelShader = nullptr;
-	ID3D11PixelShader*      g_pPixelShaderSolid = nullptr;
 	ID3D11InputLayout*      g_pVertexLayout = nullptr;
 	ID3D11Buffer*           g_pVertexBuffer = nullptr;
 	ID3D11Buffer*           g_pIndexBuffer = nullptr;
@@ -85,11 +87,16 @@ private:
 		XMFLOAT4 vLightDir;
 		XMFLOAT4 vLightColor;
 		XMFLOAT4 vOutputColor;
+		int normalIndices[32] = { 0 };
+		XMFLOAT3 faceNormals[7] = { XMFLOAT3(0, 0, 0) };
 	};
 
 	std::vector<XMFLOAT3> normal;
 	std::vector<SimpleVertex> vertices;
 	std::vector<WORD> indices;
+
+	std::vector<XMFLOAT3> faceNormal;
+	std::vector<int> faceNormalIndices;
 
 };
 
