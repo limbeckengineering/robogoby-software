@@ -160,39 +160,64 @@ bool GamePad::Connected()
 // Return X axis of left stick
 float GamePad::LeftStick_X()
 {
-	// Obtain X axis of left stick
-	short sX = m_State.Gamepad.sThumbLX;
+	
+	if (LStick_InDeadzone()) {
+		return 0.0f;
+	}
+	else {
+		// Obtain X axis of left stick
+		short sX = m_State.Gamepad.sThumbLX;
 
-	// Return axis value, converted to a float
-	return (static_cast<float>(sX) / 32768.0f);
+		// Return axis value, converted to a float
+		return (static_cast<float>(sX) / 32768.0f);
+	}
 }
 // Return Y axis of left stick
 float GamePad::LeftStick_Y()
 {
-	// Obtain Y axis of left stick
-	short sY = m_State.Gamepad.sThumbLY;
 
-	// Return axis value, converted to a float
-	return (static_cast<float>(sY) / 32768.0f);
+	if (LStick_InDeadzone()) {
+		return 0.0f;
+	}
+	else {
+		// Obtain Y axis of left stick
+		short sY = m_State.Gamepad.sThumbLY;
+
+		// Return axis value, converted to a float
+		return (static_cast<float>(sY) / 32768.0f);
+	}
+	
 }
 
 // Return X axis of right stick
 float GamePad::RightStick_X()
 {
-	// Obtain X axis of right stick
-	short sX = m_State.Gamepad.sThumbRX;
+	if (RStick_InDeadzone()) {
+		return 0.0f;
+	}
+	else {
+		// Obtain X axis of right stick
+		short sX = m_State.Gamepad.sThumbRX;
 
-	// Return axis value, converted to a float
-	return (static_cast<float>(sX) / 32768.0f);
+		// Return axis value, converted to a float
+		return (static_cast<float>(sX) / 32768.0f);
+	}
+	
 }
 // Return Y axis of right stick
 float GamePad::RightStick_Y()
 {
-	// Obtain the Y axis of the left stick
-	short sY = m_State.Gamepad.sThumbRY;
+	if (RStick_InDeadzone()) {
+		return 0.0f;
+	}
+	else {
+		// Obtain the Y axis of the left stick
+		short sY = m_State.Gamepad.sThumbRY;
 
-	// Return axis value, converted to a float
-	return (static_cast<float>(sY) / 32768.0f);
+		// Return axis value, converted to a float
+		return (static_cast<float>(sY) / 32768.0f);
+	}
+	
 }
 
 // Return value of left trigger

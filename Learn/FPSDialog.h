@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 uint16_t fps = 15;
-uint8_t gain = 15, exposure = 15, LED = 15;
+uint8_t gain = 15, exposure = 15, LED = 0;
 
 namespace RoboGobyOCU {
 
@@ -126,7 +126,6 @@ namespace RoboGobyOCU {
 			this->LED_PWM->Name = L"LED_PWM";
 			this->LED_PWM->Size = System::Drawing::Size(551, 45);
 			this->LED_PWM->TabIndex = 2;
-			this->LED_PWM->Value = 15;
 			this->LED_PWM->Scroll += gcnew System::EventHandler(this, &FPSDialog::LED_PWM_Scroll);
 			// 
 			// LEDLabel
@@ -134,9 +133,9 @@ namespace RoboGobyOCU {
 			this->LEDLabel->AutoSize = true;
 			this->LEDLabel->Location = System::Drawing::Point(245, 262);
 			this->LEDLabel->Name = L"LEDLabel";
-			this->LEDLabel->Size = System::Drawing::Size(79, 13);
+			this->LEDLabel->Size = System::Drawing::Size(73, 13);
 			this->LEDLabel->TabIndex = 3;
-			this->LEDLabel->Text = L"LED PWM:  15";
+			this->LEDLabel->Text = L"LED PWM:  0";
 			// 
 			// exposureLabel
 			// 

@@ -16,10 +16,10 @@
 
 //global variables
 
-const int MESSAGE_TO_SERVER_BIT_WIDTH = 17;
-const int MESSAGE_FROM_SERVER_BIT_WIDTH = 10;
+const int MESSAGE_TO_SERVER_BYTE_WIDTH = 17;
+const int MESSAGE_FROM_SERVER_BYTE_WIDTH = 52;
 
-uint8_t generalRecvBuf[MESSAGE_FROM_SERVER_BIT_WIDTH];
+char generalRecvBuf[MESSAGE_FROM_SERVER_BYTE_WIDTH];
 
 //Buffer filled with data to send to server
 //General Send Buffer :
@@ -38,12 +38,12 @@ uint8_t generalRecvBuf[MESSAGE_FROM_SERVER_BIT_WIDTH];
 //VF			8 - bit u
 //cameraView	8 - bit u
 //mainLedPwm	8 - bit u
-uint8_t currentGeneralSendBuf[MESSAGE_TO_SERVER_BIT_WIDTH];
+uint8_t currentGeneralSendBuf[MESSAGE_TO_SERVER_BYTE_WIDTH];
 
 //Last buffer to be sent; used as a check to see if anything has changed
-uint8_t lastGeneralSendBuf[MESSAGE_TO_SERVER_BIT_WIDTH];
+uint8_t lastGeneralSendBuf[MESSAGE_TO_SERVER_BYTE_WIDTH];
 
-//buffer for the left frame of the camera
+//buffer for camera frame
 std::vector<char> leftFrameBuf(76800);
 
 //buffer for the right frame of the camera
@@ -90,6 +90,24 @@ std::atomic<uint8_t> cameraView = 0;
 std::atomic<uint8_t> mainLedPwm = 0;
 
 //end commands to sub
+
+//data from sub
+
+/*
+float fout_temp;
+float fout_pressure;
+float fin_temp1;
+float fin_pressure;
+float ffront;
+float fh1_current;
+float fv1_current;
+float fv2_current;
+float fh2_current;
+float fBAMFT_current;
+*/
+std::atomic<float> dataIn[10];
+
+//end data from sub
 
 namespace RoboGobyOCU {
 
@@ -158,7 +176,23 @@ namespace RoboGobyOCU {
 	private: System::Windows::Forms::PictureBox^  subRenderWindow;
 	private: System::ComponentModel::BackgroundWorker^  bgwRenderLoop;
 	private: System::ComponentModel::BackgroundWorker^  bgwCommandParsing;
+	private: System::Windows::Forms::GroupBox^  groupCurrent;
+	private: System::Windows::Forms::Label^  lh2Current;
+	private: System::Windows::Forms::Label^  lv2Current;
+	private: System::Windows::Forms::Label^  v1Current;
+	private: System::Windows::Forms::Label^  h1Current;
+	private: System::Windows::Forms::Label^  lBAMFTCurrent;
+	private: System::Windows::Forms::GroupBox^  groupTemp;
+	private: System::Windows::Forms::GroupBox^  groupLidar;
 
+	private: System::Windows::Forms::Label^  lintemp1;
+	private: System::Windows::Forms::Label^  louttemp;
+
+	private: System::Windows::Forms::Label^  lfront;
+	private: System::Windows::Forms::GroupBox^  groupPressHum;
+
+	private: System::Windows::Forms::Label^  loutPress;
+	private: System::Windows::Forms::Label^  linPressure;
 
 	private:
 		/// <summary>
@@ -192,9 +226,27 @@ namespace RoboGobyOCU {
 			this->subRenderWindow = (gcnew System::Windows::Forms::PictureBox());
 			this->bgwRenderLoop = (gcnew System::ComponentModel::BackgroundWorker());
 			this->bgwCommandParsing = (gcnew System::ComponentModel::BackgroundWorker());
+			this->groupCurrent = (gcnew System::Windows::Forms::GroupBox());
+			this->lh2Current = (gcnew System::Windows::Forms::Label());
+			this->lv2Current = (gcnew System::Windows::Forms::Label());
+			this->v1Current = (gcnew System::Windows::Forms::Label());
+			this->h1Current = (gcnew System::Windows::Forms::Label());
+			this->lBAMFTCurrent = (gcnew System::Windows::Forms::Label());
+			this->groupTemp = (gcnew System::Windows::Forms::GroupBox());
+			this->louttemp = (gcnew System::Windows::Forms::Label());
+			this->lintemp1 = (gcnew System::Windows::Forms::Label());
+			this->groupLidar = (gcnew System::Windows::Forms::GroupBox());
+			this->lfront = (gcnew System::Windows::Forms::Label());
+			this->groupPressHum = (gcnew System::Windows::Forms::GroupBox());
+			this->loutPress = (gcnew System::Windows::Forms::Label());
+			this->linPressure = (gcnew System::Windows::Forms::Label());
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->pb1))->BeginInit();
 			this->menuStrip1->SuspendLayout();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->subRenderWindow))->BeginInit();
+			this->groupCurrent->SuspendLayout();
+			this->groupTemp->SuspendLayout();
+			this->groupLidar->SuspendLayout();
+			this->groupPressHum->SuspendLayout();
 			this->SuspendLayout();
 			// 
 			// pb1
@@ -327,10 +379,10 @@ namespace RoboGobyOCU {
 			// 
 			// outputConsol
 			// 
-			this->outputConsol->Location = System::Drawing::Point(12, 574);
+			this->outputConsol->Location = System::Drawing::Point(738, 434);
 			this->outputConsol->Name = L"outputConsol";
 			this->outputConsol->ScrollBars = System::Windows::Forms::RichTextBoxScrollBars::None;
-			this->outputConsol->Size = System::Drawing::Size(720, 184);
+			this->outputConsol->Size = System::Drawing::Size(400, 323);
 			this->outputConsol->TabIndex = 9;
 			this->outputConsol->Text = L"";
 			// 
@@ -350,11 +402,151 @@ namespace RoboGobyOCU {
 			// 
 			this->bgwCommandParsing->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwCommandParsing_DoWork);
 			// 
+			// groupCurrent
+			// 
+			this->groupCurrent->Controls->Add(this->lh2Current);
+			this->groupCurrent->Controls->Add(this->lv2Current);
+			this->groupCurrent->Controls->Add(this->v1Current);
+			this->groupCurrent->Controls->Add(this->h1Current);
+			this->groupCurrent->Controls->Add(this->lBAMFTCurrent);
+			this->groupCurrent->Location = System::Drawing::Point(12, 573);
+			this->groupCurrent->Name = L"groupCurrent";
+			this->groupCurrent->Size = System::Drawing::Size(125, 184);
+			this->groupCurrent->TabIndex = 11;
+			this->groupCurrent->TabStop = false;
+			this->groupCurrent->Text = L"Current Sensors";
+			// 
+			// lh2Current
+			// 
+			this->lh2Current->AutoSize = true;
+			this->lh2Current->Location = System::Drawing::Point(6, 164);
+			this->lh2Current->Name = L"lh2Current";
+			this->lh2Current->Size = System::Drawing::Size(27, 13);
+			this->lh2Current->TabIndex = 4;
+			this->lh2Current->Text = L"H2: ";
+			// 
+			// lv2Current
+			// 
+			this->lv2Current->AutoSize = true;
+			this->lv2Current->Location = System::Drawing::Point(6, 128);
+			this->lv2Current->Name = L"lv2Current";
+			this->lv2Current->Size = System::Drawing::Size(26, 13);
+			this->lv2Current->TabIndex = 3;
+			this->lv2Current->Text = L"V2: ";
+			// 
+			// v1Current
+			// 
+			this->v1Current->AutoSize = true;
+			this->v1Current->Location = System::Drawing::Point(6, 92);
+			this->v1Current->Name = L"v1Current";
+			this->v1Current->Size = System::Drawing::Size(26, 13);
+			this->v1Current->TabIndex = 2;
+			this->v1Current->Text = L"V1: ";
+			// 
+			// h1Current
+			// 
+			this->h1Current->AutoSize = true;
+			this->h1Current->Location = System::Drawing::Point(6, 56);
+			this->h1Current->Name = L"h1Current";
+			this->h1Current->Size = System::Drawing::Size(27, 13);
+			this->h1Current->TabIndex = 1;
+			this->h1Current->Text = L"H1: ";
+			// 
+			// lBAMFTCurrent
+			// 
+			this->lBAMFTCurrent->AutoSize = true;
+			this->lBAMFTCurrent->Location = System::Drawing::Point(6, 20);
+			this->lBAMFTCurrent->Name = L"lBAMFTCurrent";
+			this->lBAMFTCurrent->Size = System::Drawing::Size(46, 13);
+			this->lBAMFTCurrent->TabIndex = 0;
+			this->lBAMFTCurrent->Text = L"BAMFT:";
+			// 
+			// groupTemp
+			// 
+			this->groupTemp->Controls->Add(this->louttemp);
+			this->groupTemp->Controls->Add(this->lintemp1);
+			this->groupTemp->Location = System::Drawing::Point(143, 573);
+			this->groupTemp->Name = L"groupTemp";
+			this->groupTemp->Size = System::Drawing::Size(105, 91);
+			this->groupTemp->TabIndex = 12;
+			this->groupTemp->TabStop = false;
+			this->groupTemp->Text = L"Temperature";
+			// 
+			// louttemp
+			// 
+			this->louttemp->AutoSize = true;
+			this->louttemp->Location = System::Drawing::Point(6, 56);
+			this->louttemp->Name = L"louttemp";
+			this->louttemp->Size = System::Drawing::Size(63, 13);
+			this->louttemp->TabIndex = 2;
+			this->louttemp->Text = L"Out_Temp: ";
+			// 
+			// lintemp1
+			// 
+			this->lintemp1->AutoSize = true;
+			this->lintemp1->Location = System::Drawing::Point(6, 20);
+			this->lintemp1->Name = L"lintemp1";
+			this->lintemp1->Size = System::Drawing::Size(67, 13);
+			this->lintemp1->TabIndex = 0;
+			this->lintemp1->Text = L"In_Temp_1: ";
+			// 
+			// groupLidar
+			// 
+			this->groupLidar->Controls->Add(this->lfront);
+			this->groupLidar->Location = System::Drawing::Point(143, 670);
+			this->groupLidar->Name = L"groupLidar";
+			this->groupLidar->Size = System::Drawing::Size(105, 87);
+			this->groupLidar->TabIndex = 13;
+			this->groupLidar->TabStop = false;
+			this->groupLidar->Text = L"LIDAR";
+			// 
+			// lfront
+			// 
+			this->lfront->AutoSize = true;
+			this->lfront->Location = System::Drawing::Point(6, 31);
+			this->lfront->Name = L"lfront";
+			this->lfront->Size = System::Drawing::Size(37, 13);
+			this->lfront->TabIndex = 0;
+			this->lfront->Text = L"Front: ";
+			// 
+			// groupPressHum
+			// 
+			this->groupPressHum->Controls->Add(this->loutPress);
+			this->groupPressHum->Controls->Add(this->linPressure);
+			this->groupPressHum->Location = System::Drawing::Point(254, 573);
+			this->groupPressHum->Name = L"groupPressHum";
+			this->groupPressHum->Size = System::Drawing::Size(143, 91);
+			this->groupPressHum->TabIndex = 14;
+			this->groupPressHum->TabStop = false;
+			this->groupPressHum->Text = L"Pressure and Humidity";
+			// 
+			// loutPress
+			// 
+			this->loutPress->AutoSize = true;
+			this->loutPress->Location = System::Drawing::Point(6, 56);
+			this->loutPress->Name = L"loutPress";
+			this->loutPress->Size = System::Drawing::Size(77, 13);
+			this->loutPress->TabIndex = 1;
+			this->loutPress->Text = L"Out_Pressure: ";
+			// 
+			// linPressure
+			// 
+			this->linPressure->AutoSize = true;
+			this->linPressure->Location = System::Drawing::Point(6, 20);
+			this->linPressure->Name = L"linPressure";
+			this->linPressure->Size = System::Drawing::Size(69, 13);
+			this->linPressure->TabIndex = 0;
+			this->linPressure->Text = L"In_Pressure: ";
+			// 
 			// MainWindow
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
 			this->ClientSize = System::Drawing::Size(1146, 761);
+			this->Controls->Add(this->groupPressHum);
+			this->Controls->Add(this->groupLidar);
+			this->Controls->Add(this->groupTemp);
+			this->Controls->Add(this->groupCurrent);
 			this->Controls->Add(this->subRenderWindow);
 			this->Controls->Add(this->outputConsol);
 			this->Controls->Add(this->pb1);
@@ -367,6 +559,14 @@ namespace RoboGobyOCU {
 			this->menuStrip1->ResumeLayout(false);
 			this->menuStrip1->PerformLayout();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->subRenderWindow))->EndInit();
+			this->groupCurrent->ResumeLayout(false);
+			this->groupCurrent->PerformLayout();
+			this->groupTemp->ResumeLayout(false);
+			this->groupTemp->PerformLayout();
+			this->groupLidar->ResumeLayout(false);
+			this->groupLidar->PerformLayout();
+			this->groupPressHum->ResumeLayout(false);
+			this->groupPressHum->PerformLayout();
 			this->ResumeLayout(false);
 			this->PerformLayout();
 
@@ -460,15 +660,20 @@ namespace RoboGobyOCU {
 
 			worker->ReportProgress(1);
 
-			iResult = client->readCli((char *)generalRecvBuf, MESSAGE_FROM_SERVER_BIT_WIDTH, 0, false);
+			for (int i = 0; i < 13; i++) {
+				float in;
+				iResult = client->readCli((char *)&in, sizeof(float), 0, true);
+				dataIn[i].store(in);
 
+			}
 			if (iResult < 0) break;
+
 
 			//Write phase
 			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
 			populateSendBuf();
 			if (lastGeneralSendBuf != currentGeneralSendBuf) {
-				iResult = client->writeCli((char *)currentGeneralSendBuf, MESSAGE_TO_SERVER_BIT_WIDTH, 0, true);
+				iResult = client->writeCli((char *)currentGeneralSendBuf, MESSAGE_TO_SERVER_BYTE_WIDTH, 0, true);
 				currentToLastBuf();
 				if (iResult < 0) break;
 			}
@@ -487,7 +692,7 @@ namespace RoboGobyOCU {
 		delete client;
 	}
 	private: System::Void bgwClient_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
-		printf("stop\n");
+
 		frameBeingPut.store(true, std::memory_order_relaxed);
 		if (captureLOrR == 0) {
 			pb1->Image = dynamic_cast<Image^>(bmpLeftResize);
@@ -496,8 +701,22 @@ namespace RoboGobyOCU {
 		else if (captureLOrR == 1) {
 			pb1->Image = dynamic_cast<Image^>(bmpRightResize);
 		}
+
+		printf("Out Temp: %f\nOut Pressure: %f\nIn Temp 1: %f\nIn Pressure: %f\nHumidity: %f\nIn Temp 2: %f\nFront: %f\nDown: %f\nH1 Current: %f\nV1 Current: %f\nV2 Current: %f\nH2 Current: %f\nBAMFT Current: %f\n",
+			dataIn[0].load(), dataIn[1].load(), dataIn[2].load(), dataIn[3].load(), dataIn[4].load(), dataIn[5].load(), dataIn[6].load(), dataIn[7].load(), dataIn[8].load(), dataIn[9].load(), dataIn[10].load(), dataIn[11].load(), dataIn[12].load());
+
+		/*louttemp->Text = ""
+		loutPress->Text = combineStrForDisplay(loutPress->Text, dataIn[1].load());
+		lintemp1->Text = combineStrForDisplay(lintemp1->Text, dataIn[2].load());
+		linPressure->Text = combineStrForDisplay(linPressure->Text, dataIn[3].load());
+		lHum->Text = combineStrForDisplay(lHum->Text, dataIn[4].load());
+		lintemp2->Text = combineStrForDisplay(lintemp2->Text, dataIn[5].load());
+		lfront->Text = */
+
 		frameBeingPut.store(false, std::memory_order_relaxed);
-		printf("go\n");
+
+
+
 		pb1->Refresh();
 
 	}
@@ -506,7 +725,7 @@ namespace RoboGobyOCU {
 		GamePad * gp = new GamePad(1);
 		while (true) {
 			gp->Update();
-			
+
 			while (gp->Connected()) {
 				gp->Update();
 				isConnected.store(gp->Connected(), std::memory_order_relaxed);
@@ -553,24 +772,24 @@ namespace RoboGobyOCU {
 		while (true) {
 			//if we are trying to pitch
 			if (stickAndTriggers[3].load() != 0.0f) {
-				thrusters[4].store((uint8_t)((100 * pow(stickAndTriggers[3].load(), 3)) + 100));
-				thrusters[3].store((uint8_t)((-100 * pow(stickAndTriggers[3].load(), 3)) + 100));
+				thrusters[4].store((uint8_t)((-100 * pow(stickAndTriggers[3].load(), 3)) + 100));
+				thrusters[3].store((uint8_t)((100 * pow(stickAndTriggers[3].load(), 3)) + 100));
 			}
 			//if we are trying to ascend or descend with the triggers
 			else {
-				int cumTriggerValue = (uint8_t)((pow(stickAndTriggers[4].load(), 3) * -100) + (pow(stickAndTriggers[5].load(), 3) * 100));
+				int cumTriggerValue = (uint8_t)((pow(stickAndTriggers[4].load(), 3) * 100) + (pow(stickAndTriggers[5].load(), 3) * -100)) + 100;
 
 				thrusters[4].store(cumTriggerValue);
 				thrusters[3].store(cumTriggerValue);
 			}
 			//if we are trying to yaw
-			if (stickAndTriggers[2].load() != 0) {
-				thrusters[2].store((uint8_t)((100 * pow(stickAndTriggers[2].load(), 3)) + 100));
-				thrusters[1].store((uint8_t)((-100 * pow(stickAndTriggers[2].load(), 3)) + 100));
+			if (stickAndTriggers[2].load() != 0.0f) {
+				thrusters[2].store((uint8_t)((-100 * pow(stickAndTriggers[2].load(), 3)) + 100));
+				thrusters[1].store((uint8_t)((100 * pow(stickAndTriggers[2].load(), 3)) + 100));
 			}
 			//if we are trying to strafe
 			else {
-				int thrust = (uint8_t)(100 * pow(stickAndTriggers[2].load(), 3)) + 100;
+				int thrust = (uint8_t)(-100 * pow(stickAndTriggers[0].load(), 3)) + 100;
 
 				thrusters[2].store(thrust);
 				thrusters[1].store(thrust);
@@ -626,7 +845,7 @@ namespace RoboGobyOCU {
 		populateSendBuf();
 		currentToLastBuf();
 
-		iResult = client->writeCli((char *)currentGeneralSendBuf, 10, 0, false);
+		iResult = client->writeCli((char *)currentGeneralSendBuf, 17, 0, false);
 
 		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
 
@@ -692,7 +911,7 @@ namespace RoboGobyOCU {
 
 			 //sets the lastGeneralSendBuf to the currentGeneralSendBuf
 	private: System::Void currentToLastBuf() {
-		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, MESSAGE_TO_SERVER_BIT_WIDTH);
+		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, MESSAGE_TO_SERVER_BYTE_WIDTH);
 	}
 
 

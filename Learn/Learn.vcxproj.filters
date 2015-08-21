@@ -79,4 +79,7 @@
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <Object Include="Arrow.obj" />
+  </ItemGroup>
 </Project>
