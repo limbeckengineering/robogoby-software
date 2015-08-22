@@ -8,7 +8,7 @@
 #include <atomic>
 //GUIs
 #include "serverSettingsDialoge.h"
-#include "FPSDialog.h"
+
 //classes
 #include "ClientSocket.h"
 #include "GamePad.h"
@@ -16,10 +16,15 @@
 
 //global variables
 
+//////////////////////////////Symbolic Constants////////////////////////////////
 const int MESSAGE_TO_SERVER_BYTE_WIDTH = 17;
 const int MESSAGE_FROM_SERVER_BYTE_WIDTH = 52;
+const int MOTOR_PACKET_BYTE_WIDTH = 7;
+const int CAMERA_PACKET_BYTE_WIDTH = 10;
+////////////////////////////////////////////////////////////////////////////////
 
-char generalRecvBuf[MESSAGE_FROM_SERVER_BYTE_WIDTH];
+
+/////////////////////////////Client Read/Write//////////////////////////////////
 
 //Buffer filled with data to send to server
 //General Send Buffer :
@@ -38,59 +43,69 @@ char generalRecvBuf[MESSAGE_FROM_SERVER_BYTE_WIDTH];
 //VF			8 - bit u
 //cameraView	8 - bit u
 //mainLedPwm	8 - bit u
-uint8_t currentGeneralSendBuf[MESSAGE_TO_SERVER_BYTE_WIDTH];
-
-//Last buffer to be sent; used as a check to see if anything has changed
-uint8_t lastGeneralSendBuf[MESSAGE_TO_SERVER_BYTE_WIDTH];
-
-//buffer for camera frame
-std::vector<char> leftFrameBuf(76800);
-
-//buffer for the right frame of the camera
-std::vector<char> rightFrameBuf(76800);
-
-//width/height for DUO camera on other side of server
-uint16_t width = 320, height = 240;
-
-//width x height
-int frameSize;
+uint8_t generalSendBuf[MESSAGE_TO_SERVER_BYTE_WIDTH];
 
 //result of client read and write
 int iResult;
 
+//marker for reads
+char marker;
+////////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////Camera Settings/////////////////////////////////////
+
+//Camera settings have been changed
+bool cameraSettingsChanged = false;
+
 //Indicates which camera to on the duo to capture from: 0 = left, 1 = right, 2 = both and overlay
 uint8_t captureLOrR = 0;
 
-//tells whether the server thread should refrain from resizing its current image because the main thread is using the rezised image to put an image in the UI
-std::atomic<bool> frameBeingPut(false);
+
+#include "FPSDialog.h"
+
+////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////Picture//////////////////////////////////////////////
+
+//width/height for DUO camera on other side of server
+uint16_t width = 320, height = 240;
+
+//calculation for stride
+int stride = (((width * 8) + 31)/32)*4;
+
+//buffer for camera frame
+char frameBuf[76800];
+
+//width x height
+int frameSize;
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////Gamepad/////////////////////////////////////////
 
 //gamepad
 //is controller connected
 std::atomic<bool> isConnected(false);
 
-// A B X Y DU DD DL DR LS RS LB RB S B
-std::atomic<bool> buttonsPressed[14];
-
-// A B X Y DU DD DL DR LS RS LB RB S B
-std::atomic<bool> buttonsDown[14];
-
-//Lx Ly Rx Ry LT RT
-std::atomic<float> stickAndTriggers[6];
-
 //end gamepad
 
+////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////Commands To SUB////////////////////////////////
 //Commands to sub
 //M HB HF VB VF
 std::atomic<uint8_t> thrusters[5];
 
 //movement of view camera
-std::atomic<uint8_t> cameraView = 0;
+std::atomic<uint8_t> cameraView = 66;
 
 //PWM of forward LEDs
 std::atomic<uint8_t> mainLedPwm = 0;
 
 //end commands to sub
+////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////Data From Sub///////////////////////////////////////
 //data from sub
 
 /*
@@ -108,6 +123,10 @@ float fBAMFT_current;
 std::atomic<float> dataIn[10];
 
 //end data from sub
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 
 namespace RoboGobyOCU {
 
@@ -128,13 +147,8 @@ namespace RoboGobyOCU {
 		{
 			//initialize GUI
 			InitializeComponent();
-
-			bgwGamepad->RunWorkerAsync();
-
 			re = new RenderEngine((HWND)subRenderWindow->Handle.ToPointer());
-			bgwRenderLoop->RunWorkerAsync();
-
-			bgwCommandParsing->RunWorkerAsync();
+			bgwGamepad->RunWorkerAsync();
 		}
 
 	protected:
@@ -151,10 +165,8 @@ namespace RoboGobyOCU {
 
 
 	private: Imaging::ColorPalette ^ _palette;
-	private: Bitmap^ bmpLeftNative;
-	private: Bitmap^ bmpRightNative;
-	private: Bitmap^ bmpLeftResize;
-	private: Bitmap^ bmpRightResize;
+	private: Bitmap^ bmpNative;
+	private: Bitmap^ bmpResize;
 	private: ClientSocket * client;
 	private: RenderEngine * re;
 	private: System::Windows::Forms::PictureBox^  pb1;
@@ -174,8 +186,6 @@ namespace RoboGobyOCU {
 	private: System::ComponentModel::BackgroundWorker^  bgwGamepad;
 	private: System::Windows::Forms::RichTextBox^  outputConsol;
 	private: System::Windows::Forms::PictureBox^  subRenderWindow;
-	private: System::ComponentModel::BackgroundWorker^  bgwRenderLoop;
-	private: System::ComponentModel::BackgroundWorker^  bgwCommandParsing;
 	private: System::Windows::Forms::GroupBox^  groupCurrent;
 	private: System::Windows::Forms::Label^  lh2Current;
 	private: System::Windows::Forms::Label^  lv2Current;
@@ -184,13 +194,10 @@ namespace RoboGobyOCU {
 	private: System::Windows::Forms::Label^  lBAMFTCurrent;
 	private: System::Windows::Forms::GroupBox^  groupTemp;
 	private: System::Windows::Forms::GroupBox^  groupLidar;
-
 	private: System::Windows::Forms::Label^  lintemp1;
 	private: System::Windows::Forms::Label^  louttemp;
-
 	private: System::Windows::Forms::Label^  lfront;
 	private: System::Windows::Forms::GroupBox^  groupPressHum;
-
 	private: System::Windows::Forms::Label^  loutPress;
 	private: System::Windows::Forms::Label^  linPressure;
 
@@ -224,8 +231,6 @@ namespace RoboGobyOCU {
 			this->bgwGamepad = (gcnew System::ComponentModel::BackgroundWorker());
 			this->outputConsol = (gcnew System::Windows::Forms::RichTextBox());
 			this->subRenderWindow = (gcnew System::Windows::Forms::PictureBox());
-			this->bgwRenderLoop = (gcnew System::ComponentModel::BackgroundWorker());
-			this->bgwCommandParsing = (gcnew System::ComponentModel::BackgroundWorker());
 			this->groupCurrent = (gcnew System::Windows::Forms::GroupBox());
 			this->lh2Current = (gcnew System::Windows::Forms::Label());
 			this->lv2Current = (gcnew System::Windows::Forms::Label());
@@ -393,14 +398,6 @@ namespace RoboGobyOCU {
 			this->subRenderWindow->Size = System::Drawing::Size(400, 400);
 			this->subRenderWindow->TabIndex = 10;
 			this->subRenderWindow->TabStop = false;
-			// 
-			// bgwRenderLoop
-			// 
-			this->bgwRenderLoop->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwRenderLoop_DoWork);
-			// 
-			// bgwCommandParsing
-			// 
-			this->bgwCommandParsing->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::bgwCommandParsing_DoWork);
 			// 
 			// groupCurrent
 			// 
@@ -579,27 +576,20 @@ namespace RoboGobyOCU {
 		//Start communication loop
 		do {
 
-			//Read phase 
-			//recieve left frame or...
-			if (captureLOrR == 0) {
+			////////////////////////////////Read Phase///////////////////////////////////
 
-				iResult = client->readCli(&leftFrameBuf[0], frameSize, 0, true);
+			iResult = client->readCli(&marker, 1, 0, true);
 
-				if (iResult < 0) break;
+			switch (marker) {
+			case 'f':
+			{
+				iResult = client->readCli(&frameBuf[0], frameSize, 0, true);
 
-				printf("Whole frame gathered\n");
-
-				//calculation for stride
-				int stride = width * 8;  // bits per row
-				stride += 31;            // round up to next 32-bit boundary
-				stride /= 32;            // DWORDs per row
-				stride *= 4;             // bytes per row
-
-				bmpLeftNative = gcnew Bitmap(width, height, stride,
-					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(&leftFrameBuf[0]));
+				bmpNative = gcnew Bitmap(width, height, stride,
+					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(&frameBuf[0]));
 
 				//create grayscale color pallet for image
-				_palette = bmpLeftNative->Palette;
+				_palette = bmpNative->Palette;
 
 				for (int i = 0; i < 256; i++)
 				{
@@ -607,75 +597,47 @@ namespace RoboGobyOCU {
 					_palette->Entries[i] = b->FromArgb(i, i, i);
 				}
 
-				bmpLeftNative->Palette = _palette;
-
-				while (frameBeingPut.load(std::memory_order_relaxed) == true) {
-					//waste cycles
-					//check for data race over Resized bitmap
-				}
-				printf("going");
+				bmpNative->Palette = _palette;
 
 				//resize the image to be 720x540
-				bmpLeftResize = gcnew Bitmap(bmpLeftNative, 720, 540);
-				//TODO make image 640x480 (or whatever final resoulation) whatever the native res is
-
+				bmpResize = gcnew Bitmap(bmpNative, 720, 540);
+				
+				//TODO Implement atomic locking so that this cannot be called if the previous one is not done
+				worker->ReportProgress(1);
+				break;
 			}
-			//receive right frame
-			else if (captureLOrR == 1) {
-
-				iResult = client->readCli(&rightFrameBuf[0], frameSize, 0, true);
-
-				if (iResult < 0) break;
-
-				//calculation for stride
-				int stride = width * 8;  // bits per row
-				stride += 31;            // round up to next 32-bit boundary
-				stride /= 32;            // DWORDs per row
-				stride *= 4;             // bytes per row
-
-				printf("Whole frame gathered\n");
-				bmpRightNative = gcnew Bitmap(width, height, stride,
-					System::Drawing::Imaging::PixelFormat::Format8bppIndexed, IntPtr(&rightFrameBuf[0]));
-
-				//create grayscale color pallet for image
-				_palette = bmpRightNative->Palette;
-
-				for (int i = 0; i < 256; i++)
-				{
-					Color ^ b = gcnew Color();
-					_palette->Entries[i] = b->FromArgb(i, i, i);
+			case 'd':
+				for (int i = 0; i < 10; i++) {
+					float in;
+					iResult = client->readCli((char *)&in, sizeof(float), 0, true);
+					dataIn[i].store(in);
 				}
-
-				bmpRightNative->Palette = _palette;
-				printf("checking\n");
-				while (frameBeingPut.load(std::memory_order_relaxed) == true) {
-					//waste cycles
-					//check for data race over Resized bitmap
-				}
-				printf("going\n");
-
-				//resize the image to be 720x540
-				bmpRightResize = gcnew Bitmap(bmpRightNative, 720, 540);
+				break;
+			case 'n':
+				break;
 			}
 
-			worker->ReportProgress(1);
+			/////////////////////////////////////Write Phase//////////////////////////////////////
 
-			for (int i = 0; i < 13; i++) {
-				float in;
-				iResult = client->readCli((char *)&in, sizeof(float), 0, true);
-				dataIn[i].store(in);
+			ZeroMemory(generalSendBuf, sizeof(generalSendBuf));
 
+			if (cameraSettingsChanged) {
+				populateSendBufForCameraSettings();
+				iResult = client->writeCli("c", 1, 0, true);
+				iResult = client->writeCli((char *)generalSendBuf, CAMERA_PACKET_BYTE_WIDTH, 0, true);
+				cameraSettingsChanged = false;
 			}
-			if (iResult < 0) break;
-
-
-			//Write phase
-			//check to see if we need to send another set of orders to the Server (see if they have changed since we last sent them)
-			populateSendBuf();
-			if (lastGeneralSendBuf != currentGeneralSendBuf) {
-				iResult = client->writeCli((char *)currentGeneralSendBuf, MESSAGE_TO_SERVER_BYTE_WIDTH, 0, true);
-				currentToLastBuf();
-				if (iResult < 0) break;
+			else {
+				populateSendBufForMotor();
+				printf("|%d|", generalSendBuf[0]);
+				printf("|%d|", generalSendBuf[1]);
+				printf("|%d|", generalSendBuf[2]);
+				printf("|%d|", generalSendBuf[3]);
+				printf("|%d|", generalSendBuf[4]);
+				printf("|%d|", generalSendBuf[5]);
+				printf("|%d|\n", generalSendBuf[6]);
+				iResult = client->writeCli("m", 1, 0, true);
+				iResult = client->writeCli((char *)generalSendBuf, MOTOR_PACKET_BYTE_WIDTH, 0, true);
 			}
 
 			//check to see if we are cancelled
@@ -693,17 +655,10 @@ namespace RoboGobyOCU {
 	}
 	private: System::Void bgwClient_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
 
-		frameBeingPut.store(true, std::memory_order_relaxed);
-		if (captureLOrR == 0) {
-			pb1->Image = dynamic_cast<Image^>(bmpLeftResize);
+		pb1->Image = dynamic_cast<Image^>(bmpResize);
 
-		}
-		else if (captureLOrR == 1) {
-			pb1->Image = dynamic_cast<Image^>(bmpRightResize);
-		}
-
-		printf("Out Temp: %f\nOut Pressure: %f\nIn Temp 1: %f\nIn Pressure: %f\nHumidity: %f\nIn Temp 2: %f\nFront: %f\nDown: %f\nH1 Current: %f\nV1 Current: %f\nV2 Current: %f\nH2 Current: %f\nBAMFT Current: %f\n",
-			dataIn[0].load(), dataIn[1].load(), dataIn[2].load(), dataIn[3].load(), dataIn[4].load(), dataIn[5].load(), dataIn[6].load(), dataIn[7].load(), dataIn[8].load(), dataIn[9].load(), dataIn[10].load(), dataIn[11].load(), dataIn[12].load());
+		//printf("Out Temp: %f\nOut Pressure: %f\nIn Temp 1: %f\nIn Pressure: %f\nHumidity: %f\nIn Temp 2: %f\nFront: %f\nDown: %f\nH1 Current: %f\nV1 Current: %f\nV2 Current: %f\nH2 Current: %f\nBAMFT Current: %f\n",
+		//	dataIn[0].load(), dataIn[1].load(), dataIn[2].load(), dataIn[3].load(), dataIn[4].load(), dataIn[5].load(), dataIn[6].load(), dataIn[7].load(), dataIn[8].load(), dataIn[9].load(), dataIn[10].load(), dataIn[11].load(), dataIn[12].load());
 
 		/*louttemp->Text = ""
 		loutPress->Text = combineStrForDisplay(loutPress->Text, dataIn[1].load());
@@ -713,15 +668,20 @@ namespace RoboGobyOCU {
 		lintemp2->Text = combineStrForDisplay(lintemp2->Text, dataIn[5].load());
 		lfront->Text = */
 
-		frameBeingPut.store(false, std::memory_order_relaxed);
-
-
-
 		pb1->Refresh();
 
 	}
 
 	private: System::Void bgwGamepad_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
+	/*	// A B X Y DU DD DL DR LS RS LB RB S B
+		std::atomic<bool> buttonsPressed[14];
+
+		// A B X Y DU DD DL DR LS RS LB RB S B
+		std::atomic<bool> buttonsDown[14];
+
+		//Lx Ly Rx Ry LT RT
+		std::atomic<float> stickAndTriggers[6];*/
+		
 		GamePad * gp = new GamePad(1);
 		while (true) {
 			gp->Update();
@@ -730,104 +690,86 @@ namespace RoboGobyOCU {
 				gp->Update();
 				isConnected.store(gp->Connected(), std::memory_order_relaxed);
 
-				for (int i = 0; i < 14; i++) {
-					buttonsDown[i].store(gp->GetButtonDown(i), std::memory_order_relaxed);
+				//if we are trying to pitch
+				if (gp->RightStick_Y() != 0.0f) {
+					thrusters[4].store((uint8_t)((-100 * pow(gp->RightStick_Y(), 3)) + 100));
+					thrusters[3].store((uint8_t)((100 * pow(gp->RightStick_Y(), 3)) + 100));
+				}
+				//if we are trying to ascend or descend with the triggers
+				else {
+					int cumTriggerValue = (uint8_t)((pow(gp->LeftTrigger(), 3) * 100) + (pow(gp->RightTrigger(), 3) * -100)) + 100;
+
+					thrusters[4].store(cumTriggerValue);
+					thrusters[3].store(cumTriggerValue);
+				}
+				//if we are trying to yaw
+				if (gp->RightStick_X() != 0.0f) {
+					thrusters[2].store((uint8_t)((-100 * pow(gp->RightStick_X(), 3)) + 100));
+					thrusters[1].store((uint8_t)((100 * pow(gp->RightStick_X(), 3)) + 100));
+				}
+				//if we are trying to strafe
+				else {
+					int thrust = (uint8_t)(-100 * pow(gp->LeftStick_X(), 3)) + 100;
+
+					thrusters[2].store(thrust);
+					thrusters[1].store(thrust);
 				}
 
-				for (int i = 0; i < 14; i++) {
-					buttonsPressed[i].store(gp->GetButtonPressed(i), std::memory_order_relaxed);
+				//back thruster gets set here; easy because it ony gets used in one manuver
+				thrusters[0].store((uint8_t)((100 * pow(gp->LeftStick_Y(), 3)) + 100));
+
+				//update main lights
+				int pwm = mainLedPwm.load();
+
+				if (gp->GetButtonDown(9) == true) {
+					pwm += 10;
+				}
+				if (gp->GetButtonDown(8) == true) {
+					pwm -= 10;
 				}
 
-				stickAndTriggers[0].store(gp->LeftStick_X(), std::memory_order_relaxed);
-				stickAndTriggers[1].store(gp->LeftStick_Y(), std::memory_order_relaxed);
-				stickAndTriggers[2].store(gp->RightStick_X(), std::memory_order_relaxed);
-				stickAndTriggers[3].store(gp->RightStick_Y(), std::memory_order_relaxed);
-				stickAndTriggers[4].store(gp->LeftTrigger(), std::memory_order_relaxed);
-				stickAndTriggers[5].store(gp->RightTrigger(), std::memory_order_relaxed);
+				if (pwm < 0) {
+					pwm = 0;
+				}
+				else if (pwm > 90) {
+					pwm = 90;
+				}
+
+				mainLedPwm.store(pwm);
+
+				//camera servo
+
+				int tilt = cameraView.load();
+				if (gp->GetButtonDown(7) == true) {
+					tilt += 2;
+				}
+				else if (gp->GetButtonDown(6) == true) {
+					tilt -= 2;
+				}
+				
+				if (tilt < 40) {
+					tilt = 40;
+				}
+				else if (tilt > 75) {
+					tilt = 75;
+				}
+
+				cameraView.store(tilt);
+
+				/*printf("|%d|", thrusters[0].load());
+				printf("|%d|", thrusters[1].load());
+				printf("|%d|", thrusters[2].load());
+				printf("|%d|", thrusters[3].load());
+				printf("|%d|", thrusters[4].load());
+				printf("|%d|",cameraView.load());
+				printf("|%d|\n", mainLedPwm.load());*/
 
 				gp->RefreshState();
+
+				re->RenderFrame(0, 0);
 			}
 
 			gp->RefreshState();
-		}
-	}
-
-	private: System::Void bgwRenderLoop_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
-		while (true) { re->RenderFrame(0, 0); }
-	}
-
-	private: System::Void bgwCommandParsing_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
-		//5 thruster values
-		//1 camera tilt value
-		//1 light pwm
-
-		//use x^3 as a scalling function
-		//scale raw float value of [-1, 1] through function first
-		//multiply by 100 and truncate, leaving a value [-100, 100]
-		//add 100 to get a value [0, 200]
-
-
-		//TODO Zero all commands so nothing caries over from the last loop 
-
-		while (true) {
-			//if we are trying to pitch
-			if (stickAndTriggers[3].load() != 0.0f) {
-				thrusters[4].store((uint8_t)((-100 * pow(stickAndTriggers[3].load(), 3)) + 100));
-				thrusters[3].store((uint8_t)((100 * pow(stickAndTriggers[3].load(), 3)) + 100));
-			}
-			//if we are trying to ascend or descend with the triggers
-			else {
-				int cumTriggerValue = (uint8_t)((pow(stickAndTriggers[4].load(), 3) * 100) + (pow(stickAndTriggers[5].load(), 3) * -100)) + 100;
-
-				thrusters[4].store(cumTriggerValue);
-				thrusters[3].store(cumTriggerValue);
-			}
-			//if we are trying to yaw
-			if (stickAndTriggers[2].load() != 0.0f) {
-				thrusters[2].store((uint8_t)((-100 * pow(stickAndTriggers[2].load(), 3)) + 100));
-				thrusters[1].store((uint8_t)((100 * pow(stickAndTriggers[2].load(), 3)) + 100));
-			}
-			//if we are trying to strafe
-			else {
-				int thrust = (uint8_t)(-100 * pow(stickAndTriggers[0].load(), 3)) + 100;
-
-				thrusters[2].store(thrust);
-				thrusters[1].store(thrust);
-			}
-
-			//back thruster gets set here; easy because it ony gets used in one manuver
-			thrusters[0].store((uint8_t)((100 * pow(stickAndTriggers[1].load(), 3)) + 100));
-
-			//update main lights
-			uint8_t pwm = mainLedPwm.load();
-
-			if (buttonsDown[11].load() == true) {
-				pwm += 10;
-			}
-			if (buttonsDown[10].load() == true) {
-				pwm -= 10;
-			}
-
-			if (pwm < 0) {
-				pwm = 0;
-			}
-			else if (pwm > 90) {
-				pwm = 90;
-			}
-
-			mainLedPwm.store(pwm);
-
-			//camera servo
-
-			if (buttonsDown[7].load() == true) {
-				cameraView.store(110);
-			}
-			else if (buttonsDown[6] == true) {
-				cameraView.store(90);
-			}
-			else {
-				cameraView.store(100);
-			}
 		}
 	}
 
@@ -843,9 +785,7 @@ namespace RoboGobyOCU {
 
 		//Initial send phase for initial settings
 		populateSendBuf();
-		currentToLastBuf();
-
-		iResult = client->writeCli((char *)currentGeneralSendBuf, 17, 0, false);
+		iResult = client->writeCli((char *)generalSendBuf, MESSAGE_TO_SERVER_BYTE_WIDTH, 0, false);
 
 		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
 
@@ -888,32 +828,49 @@ namespace RoboGobyOCU {
 		serDialog->ShowDialog(this);
 	}
 
-			 //populate the currentGeneralSendBuf with current settings 
+	//populate the currentGeneralSendBuf with current settings 
 	private: System::Void populateSendBuf() {
-		currentGeneralSendBuf[0] = fps & 0xFF;
-		currentGeneralSendBuf[1] = fps >> 8;
-		currentGeneralSendBuf[2] = width & 0xFF;
-		currentGeneralSendBuf[3] = width >> 8;
-		currentGeneralSendBuf[4] = height & 0xFF;
-		currentGeneralSendBuf[5] = height >> 8;
-		currentGeneralSendBuf[6] = LED;
-		currentGeneralSendBuf[7] = gain;
-		currentGeneralSendBuf[8] = exposure;
-		currentGeneralSendBuf[9] = captureLOrR;
-		currentGeneralSendBuf[10] = thrusters[0].load();
-		currentGeneralSendBuf[11] = thrusters[1].load();
-		currentGeneralSendBuf[12] = thrusters[2].load();
-		currentGeneralSendBuf[13] = thrusters[3].load();
-		currentGeneralSendBuf[14] = thrusters[4].load();
-		currentGeneralSendBuf[15] = cameraView.load();
-		currentGeneralSendBuf[16] = mainLedPwm.load();
+		generalSendBuf[0] = fps & 0xFF;
+		generalSendBuf[1] = fps >> 8;
+		generalSendBuf[2] = width & 0xFF;
+		generalSendBuf[3] = width >> 8;
+		generalSendBuf[4] = height & 0xFF;
+		generalSendBuf[5] = height >> 8;
+		generalSendBuf[6] = LED;
+		generalSendBuf[7] = gain;
+		generalSendBuf[8] = exposure;
+		generalSendBuf[9] = captureLOrR;
+		generalSendBuf[10] = thrusters[0].load();
+		generalSendBuf[11] = thrusters[1].load();
+		generalSendBuf[12] = thrusters[2].load();
+		generalSendBuf[13] = thrusters[3].load();
+		generalSendBuf[14] = thrusters[4].load();
+		generalSendBuf[15] = cameraView.load();
+		generalSendBuf[16] = mainLedPwm.load();
 	}
 
-			 //sets the lastGeneralSendBuf to the currentGeneralSendBuf
-	private: System::Void currentToLastBuf() {
-		memcpy(lastGeneralSendBuf, currentGeneralSendBuf, MESSAGE_TO_SERVER_BYTE_WIDTH);
+	private: System::Void populateSendBufForCameraSettings() {
+		generalSendBuf[0] = fps & 0xFF;
+		generalSendBuf[1] = fps >> 8;
+		generalSendBuf[2] = width & 0xFF;
+		generalSendBuf[3] = width >> 8;
+		generalSendBuf[4] = height & 0xFF;
+		generalSendBuf[5] = height >> 8;
+		generalSendBuf[6] = LED;
+		generalSendBuf[7] = gain;
+		generalSendBuf[8] = exposure;
+		generalSendBuf[9] = captureLOrR;
 	}
 
+	private: System::Void populateSendBufForMotor() {
+		generalSendBuf[0] = thrusters[0].load();
+		generalSendBuf[1] = thrusters[1].load();
+		generalSendBuf[2] = thrusters[2].load();
+		generalSendBuf[3] = thrusters[3].load();
+		generalSendBuf[4] = thrusters[4].load();
+		generalSendBuf[5] = cameraView.load();
+		generalSendBuf[6] = mainLedPwm.load();
+	}
 
 	};
 

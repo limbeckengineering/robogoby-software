@@ -5,6 +5,7 @@
 uint16_t fps = 15;
 uint8_t gain = 15, exposure = 15, LED = 0;
 
+
 namespace RoboGobyOCU {
 
 	using namespace System;
@@ -240,6 +241,7 @@ namespace RoboGobyOCU {
 		exposure = this->newexposure;
 		LED = this->newLED;
 		printf("FPS:  %u  Gain:  %u  Exposure:  %u  LED PWM:  %u  \n", fps, gain, exposure, LED);
+		cameraSettingsChanged = true;
 		this->Close();
 	}
 	private: System::Void FPS_Scroll(System::Object^  sender, System::EventArgs^  e) {
