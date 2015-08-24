@@ -598,6 +598,7 @@ namespace RoboGobyOCU {
 			iResult = client->readCli(&marker, 1, 0, true);
 
 			switch (marker) {
+			//comment out case 'f': to disable camera on this side
 			case 'f':
 			{
 				iResult = client->readCli(&frameBuf[0], frameSize, 0, true);
