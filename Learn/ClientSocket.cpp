@@ -76,7 +76,6 @@ int ClientSocket::writeCli(const char * buf, int len, int flags, bool loopCheck)
 
 				index += iResult;
 				bytesLeft -= iResult;
-			
 
 		}
 

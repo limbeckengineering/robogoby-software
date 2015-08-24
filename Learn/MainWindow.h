@@ -573,6 +573,23 @@ namespace RoboGobyOCU {
 	private: System::Void bgwClient_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
 		BackgroundWorker^ worker = dynamic_cast<BackgroundWorker^>(sender);
 
+		bool isCloseRequested = false;
+
+		//create client
+		client = new ClientSocket("2000", IP, "Client");
+
+		//connect the servers
+		client->connectToServer();
+
+		//set the length of the buffers for each frame we are going to read in
+		frameSize = width*height;
+
+		//Initial send phase for initial settings
+		populateSendBuf();
+		iResult = client->writeCli((char *)generalSendBuf, MESSAGE_TO_SERVER_BYTE_WIDTH, 0, false);
+
+		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
+
 		//Start communication loop
 		do {
 
@@ -642,11 +659,12 @@ namespace RoboGobyOCU {
 
 			//check to see if we are cancelled
 			if (worker->CancellationPending) {
-				e->Cancel = true;
-				return;
+				isCloseRequested = true;
 			}
 
-		} while (true);
+		} while (!isCloseRequested);
+
+		iResult = client->writeCli("p", 1, 0, true);
 
 	}
 	private: System::Void bgwClient_RunWorkerCompleted(System::Object^  sender, System::ComponentModel::RunWorkerCompletedEventArgs^  e) {
@@ -690,29 +708,37 @@ namespace RoboGobyOCU {
 				gp->Update();
 				isConnected.store(gp->Connected(), std::memory_order_relaxed);
 
+				//4 VF
+				//2 HB
+
+				//3 HF
+				//1 VB
+
+
 				//if we are trying to pitch
 				if (gp->RightStick_Y() != 0.0f) {
 					thrusters[4].store((uint8_t)((-100 * pow(gp->RightStick_Y(), 3)) + 100));
-					thrusters[3].store((uint8_t)((100 * pow(gp->RightStick_Y(), 3)) + 100));
+					thrusters[1].store((uint8_t)((100 * pow(gp->RightStick_Y(), 3)) + 100));
 				}
 				//if we are trying to ascend or descend with the triggers
 				else {
 					int cumTriggerValue = (uint8_t)((pow(gp->LeftTrigger(), 3) * 100) + (pow(gp->RightTrigger(), 3) * -100)) + 100;
 
 					thrusters[4].store(cumTriggerValue);
-					thrusters[3].store(cumTriggerValue);
+					thrusters[1].store(cumTriggerValue);
 				}
 				//if we are trying to yaw
 				if (gp->RightStick_X() != 0.0f) {
+					thrusters[3].store((uint8_t)((100 * pow(gp->RightStick_X(), 3)) + 100));
 					thrusters[2].store((uint8_t)((-100 * pow(gp->RightStick_X(), 3)) + 100));
-					thrusters[1].store((uint8_t)((100 * pow(gp->RightStick_X(), 3)) + 100));
 				}
 				//if we are trying to strafe
 				else {
-					int thrust = (uint8_t)(-100 * pow(gp->LeftStick_X(), 3)) + 100;
+					int thrust1 = (uint8_t)(-100 * pow(gp->LeftStick_X(), 3)) + 100;
+					int thrust2 = (uint8_t)(-100 * pow(gp->LeftStick_X(), 3)) + 100;
 
-					thrusters[2].store(thrust);
-					thrusters[1].store(thrust);
+					thrusters[3].store(thrust2);
+					thrusters[2].store(thrust1);
 				}
 
 				//back thruster gets set here; easy because it ony gets used in one manuver
@@ -774,20 +800,6 @@ namespace RoboGobyOCU {
 	}
 
 	private: System::Void startNewConnectionToolStripMenuItem_Click(System::Object^  sender, System::EventArgs^  e) {
-		//create client
-		client = new ClientSocket("2000", IP, "Client");
-
-		//connect the servers
-		client->connectToServer();
-
-		//set the length of the buffers for each frame we are going to read in
-		frameSize = width*height;
-
-		//Initial send phase for initial settings
-		populateSendBuf();
-		iResult = client->writeCli((char *)generalSendBuf, MESSAGE_TO_SERVER_BYTE_WIDTH, 0, false);
-
-		printf("Width: %u   Height: %u   FPS: %u\n", width, height, fps);
 
 		bgwClient->RunWorkerAsync();
 
